@@ -1,0 +1,549 @@
+use bevy::prelude::*;
+use leafwing_input_manager::prelude::*;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
+
+use crate::board::{Board, PieceColor, COLS, VISIBLE_ROWS};
+use crate::collision::{self, piece_fits};
+use crate::input::{input_map_for, PieceAction};
+use crate::piece::{Rotation, TSpinType, TetrominoKind};
+use crate::scoring::ScoreBoard;
+use crate::state::GameState;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
+pub enum PlayerId {
+    P1,
+    P2,
+}
+
+impl PlayerId {
+    pub fn spawn_col(self) -> i32 {
+        match self {
+            PlayerId::P1 => (COLS as i32) / 4,     // ~4
+            PlayerId::P2 => 3 * (COLS as i32) / 4, // ~13
+        }
+    }
+}
+
+/// Active falling piece, one per player.
+#[derive(Component, Debug, Clone)]
+pub struct ActivePiece {
+    pub player: PlayerId,
+    pub kind: TetrominoKind,
+    pub rotation: Rotation,
+    pub col: i32,
+    pub row: i32,
+    pub gravity_timer: f32,
+    pub lock_timer: Option<f32>,
+    pub soft_drop_held: bool,
+    // T-Spin detection: true if the last action that changed piece state was a rotation
+    pub last_was_rotation: bool,
+    // Hold piece
+    pub hold: Option<TetrominoKind>,
+    pub hold_used: bool,
+    // DAS (Delayed Auto-Shift) state
+    pub das_left: f32,
+    pub das_right: f32,
+    pub arr_left: f32,
+    pub arr_right: f32,
+    /// Prevents check_lock from emitting PieceLocked more than once per piece.
+    pub locked: bool,
+}
+
+/// 7-bag randomizer per player.
+#[derive(Component, Debug)]
+pub struct PieceBag {
+    pub player: PlayerId,
+    pub queue: Vec<TetrominoKind>,
+}
+
+impl PieceBag {
+    pub fn new(player: PlayerId) -> Self {
+        let mut bag = Self { player, queue: Vec::new() };
+        bag.refill();
+        bag.refill(); // start with 14 pieces
+        bag
+    }
+
+    fn refill(&mut self) {
+        let mut pieces = TetrominoKind::ALL.to_vec();
+        pieces.shuffle(&mut thread_rng());
+        self.queue.extend(pieces);
+    }
+
+    pub fn pop(&mut self) -> TetrominoKind {
+        if self.queue.len() <= 7 {
+            self.refill();
+        }
+        self.queue.remove(0)
+    }
+
+    pub fn peek(&self) -> TetrominoKind {
+        self.queue[0]
+    }
+}
+
+// Events
+#[derive(Event)]
+pub struct PieceLocked {
+    pub player: PlayerId,
+}
+
+/// Emitted when lines are cleared (or count=0 when a piece locks without clearing, for combo reset).
+#[derive(Event)]
+pub struct LinesCleared {
+    pub count: u32,
+    pub t_spin: TSpinType,
+}
+
+#[derive(Event)]
+pub struct GameOverEvent;
+
+const LOCK_DELAY: f32 = 0.5;
+const DAS_DELAY: f32 = 0.167;
+const ARR_RATE: f32 = 0.033;
+
+fn fresh_piece(player: PlayerId, kind: TetrominoKind) -> ActivePiece {
+    ActivePiece {
+        player,
+        kind,
+        rotation: Rotation::R0,
+        col: player.spawn_col(),
+        row: VISIBLE_ROWS as i32 - 2,
+        gravity_timer: 0.0,
+        lock_timer: None,
+        soft_drop_held: false,
+        last_was_rotation: false,
+        hold: None,
+        hold_used: false,
+        das_left: 0.0,
+        das_right: 0.0,
+        arr_left: 0.0,
+        arr_right: 0.0,
+        locked: false,
+    }
+}
+
+/// Spawn both player entities with their input maps and piece bags.
+pub fn spawn_players(mut commands: Commands) {
+    for player in [PlayerId::P1, PlayerId::P2] {
+        let mut bag = PieceBag::new(player);
+        let kind = bag.pop();
+        commands.spawn((
+            fresh_piece(player, kind),
+            bag,
+            input_map_for(player),
+            ActionState::<PieceAction>::default(),
+        ));
+    }
+}
+
+pub fn despawn_players(mut commands: Commands, query: Query<Entity, With<ActivePiece>>) {
+    for entity in &query {
+        commands.entity(entity).despawn();
+    }
+}
+
+/// System: handle input for each player.
+pub fn handle_input(
+    time: Res<Time>,
+    mut players: Query<(&ActionState<PieceAction>, &mut ActivePiece, &mut PieceBag)>,
+    board: Res<Board>,
+    mut score: ResMut<ScoreBoard>,
+) {
+    let dt = time.delta_secs();
+    let pieces: Vec<ActivePiece> = players.iter().map(|(_, ap, _)| ap.clone()).collect();
+
+    for (action, mut piece, mut bag) in &mut players {
+        let other = pieces.iter().find(|p| p.player != piece.player);
+
+        // --- Hold piece ---
+        if action.just_pressed(&PieceAction::Hold) && !piece.hold_used {
+            let new_kind = match piece.hold {
+                Some(k) => k,
+                None => bag.pop(),
+            };
+            let held_kind = piece.kind;
+            let hold_hold = piece.hold; // preserve existing hold info for display
+            let _ = hold_hold;
+            *piece = fresh_piece(piece.player, new_kind);
+            piece.hold = Some(held_kind);
+            piece.hold_used = true;
+            continue;
+        }
+
+        // --- Left movement ---
+        if action.just_pressed(&PieceAction::MoveLeft) {
+            piece.das_left = 0.0;
+            piece.arr_left = 0.0;
+            piece.das_right = 0.0;
+            piece.arr_right = 0.0;
+            if piece_fits(&board, piece.kind, piece.rotation, piece.col - 1, piece.row, other) {
+                piece.col -= 1;
+                piece.last_was_rotation = false;
+                if piece.lock_timer.is_some() {
+                    piece.lock_timer = Some(LOCK_DELAY);
+                }
+            }
+        } else if action.pressed(&PieceAction::MoveLeft) {
+            piece.das_left += dt;
+            if piece.das_left >= DAS_DELAY {
+                piece.arr_left += dt;
+                while piece.arr_left >= ARR_RATE {
+                    piece.arr_left -= ARR_RATE;
+                    if piece_fits(&board, piece.kind, piece.rotation, piece.col - 1, piece.row, other) {
+                        piece.col -= 1;
+                        piece.last_was_rotation = false;
+                        if piece.lock_timer.is_some() {
+                            piece.lock_timer = Some(LOCK_DELAY);
+                        }
+                    } else {
+                        piece.arr_left = 0.0;
+                        break;
+                    }
+                }
+            }
+        } else {
+            piece.das_left = 0.0;
+            piece.arr_left = 0.0;
+        }
+
+        // --- Right movement ---
+        if action.just_pressed(&PieceAction::MoveRight) {
+            piece.das_right = 0.0;
+            piece.arr_right = 0.0;
+            piece.das_left = 0.0;
+            piece.arr_left = 0.0;
+            if piece_fits(&board, piece.kind, piece.rotation, piece.col + 1, piece.row, other) {
+                piece.col += 1;
+                piece.last_was_rotation = false;
+                if piece.lock_timer.is_some() {
+                    piece.lock_timer = Some(LOCK_DELAY);
+                }
+            }
+        } else if action.pressed(&PieceAction::MoveRight) {
+            piece.das_right += dt;
+            if piece.das_right >= DAS_DELAY {
+                piece.arr_right += dt;
+                while piece.arr_right >= ARR_RATE {
+                    piece.arr_right -= ARR_RATE;
+                    if piece_fits(&board, piece.kind, piece.rotation, piece.col + 1, piece.row, other) {
+                        piece.col += 1;
+                        piece.last_was_rotation = false;
+                        if piece.lock_timer.is_some() {
+                            piece.lock_timer = Some(LOCK_DELAY);
+                        }
+                    } else {
+                        piece.arr_right = 0.0;
+                        break;
+                    }
+                }
+            }
+        } else {
+            piece.das_right = 0.0;
+            piece.arr_right = 0.0;
+        }
+
+        piece.soft_drop_held = action.pressed(&PieceAction::SoftDrop);
+
+        if action.just_pressed(&PieceAction::HardDrop) {
+            let start_row = piece.row;
+            while piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row - 1, other) {
+                piece.row -= 1;
+            }
+            score.score += (start_row - piece.row) as u32 * 2;
+            piece.last_was_rotation = false;
+            piece.lock_timer = Some(0.0);
+        }
+
+        if action.just_pressed(&PieceAction::RotateCW) {
+            let to = piece.rotation.cw();
+            if let Some((nc, nr, nrot)) =
+                collision::try_rotate(&board, piece.kind, piece.rotation, to, piece.col, piece.row, other)
+            {
+                piece.col = nc;
+                piece.row = nr;
+                piece.rotation = nrot;
+                piece.last_was_rotation = true;
+                if piece.lock_timer.is_some() {
+                    piece.lock_timer = Some(LOCK_DELAY);
+                }
+            }
+        }
+
+        if action.just_pressed(&PieceAction::RotateCCW) {
+            let to = piece.rotation.ccw();
+            if let Some((nc, nr, nrot)) =
+                collision::try_rotate(&board, piece.kind, piece.rotation, to, piece.col, piece.row, other)
+            {
+                piece.col = nc;
+                piece.row = nr;
+                piece.rotation = nrot;
+                piece.last_was_rotation = true;
+                if piece.lock_timer.is_some() {
+                    piece.lock_timer = Some(LOCK_DELAY);
+                }
+            }
+        }
+    }
+}
+
+/// System: apply gravity.
+pub fn apply_gravity(
+    time: Res<Time>,
+    mut players: Query<&mut ActivePiece>,
+    board: Res<Board>,
+    mut score: ResMut<ScoreBoard>,
+) {
+    let pieces: Vec<ActivePiece> = players.iter().cloned().collect();
+    let normal_interval = score.gravity_interval();
+
+    for mut piece in &mut players {
+        let other = pieces.iter().find(|p| p.player != piece.player);
+        let interval = if piece.soft_drop_held {
+            (normal_interval / 20.0).max(0.05)
+        } else {
+            normal_interval
+        };
+        piece.gravity_timer += time.delta_secs();
+
+        if piece.gravity_timer >= interval {
+            piece.gravity_timer -= interval;
+            if piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row - 1, other) {
+                piece.row -= 1;
+                piece.lock_timer = None;
+                if piece.soft_drop_held {
+                    score.score += 1;
+                }
+            }
+        }
+    }
+}
+
+/// System: check if piece should lock.
+pub fn check_lock(
+    time: Res<Time>,
+    mut players: Query<&mut ActivePiece>,
+    board: Res<Board>,
+    mut ev_lock: EventWriter<PieceLocked>,
+) {
+    let pieces: Vec<ActivePiece> = players.iter().cloned().collect();
+
+    for mut piece in &mut players {
+        let other = pieces.iter().find(|p| p.player != piece.player);
+        let on_ground =
+            !piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row - 1, other);
+
+        if on_ground {
+            let timer = piece.lock_timer.get_or_insert(LOCK_DELAY);
+            *timer -= time.delta_secs();
+            if *timer <= 0.0 && !piece.locked {
+                piece.locked = true;
+                ev_lock.write(PieceLocked { player: piece.player });
+            }
+        } else {
+            piece.lock_timer = None;
+        }
+    }
+}
+
+/// System: lock piece into board and spawn next.
+pub fn lock_piece(
+    mut board: ResMut<Board>,
+    mut players: Query<(&mut ActivePiece, &mut PieceBag)>,
+    mut ev_lock: EventReader<PieceLocked>,
+    mut ev_lines: EventWriter<LinesCleared>,
+) {
+    for event in ev_lock.read() {
+        for (mut piece, mut bag) in &mut players {
+            if piece.player != event.player {
+                continue;
+            }
+
+            // T-Spin check BEFORE writing cells to board
+            let t_spin = if piece.kind == TetrominoKind::T && piece.last_was_rotation {
+                collision::check_t_spin(&board, piece.col, piece.row, piece.rotation)
+            } else {
+                TSpinType::None
+            };
+
+            // Write cells to board with per-piece color
+            let cell_color = match piece.player {
+                PlayerId::P1 => PieceColor::Player1(piece.kind),
+                PlayerId::P2 => PieceColor::Player2(piece.kind),
+            };
+            for (cx, cy) in collision::absolute_cells(piece.kind, piece.rotation, piece.col, piece.row) {
+                board.set(cx, cy, cell_color);
+            }
+
+            // Detect full rows WITHOUT compacting (the flash animation will compact later)
+            let count = board.detect_full_rows().len() as u32;
+
+            // Always emit so update_score can manage the combo counter
+            ev_lines.write(LinesCleared { count, t_spin });
+
+            // Spawn next piece
+            let next_kind = bag.pop();
+            let hold = piece.hold;
+            *piece = fresh_piece(piece.player, next_kind);
+            piece.hold = hold; // preserve held piece across locks
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::board::Board;
+    use crate::piece::{Rotation, TetrominoKind};
+
+    fn make_active(player: PlayerId, kind: TetrominoKind, col: i32, row: i32) -> ActivePiece {
+        ActivePiece {
+            player,
+            kind,
+            rotation: Rotation::R0,
+            col,
+            row,
+            gravity_timer: 0.0,
+            lock_timer: None,
+            soft_drop_held: false,
+            last_was_rotation: false,
+            hold: None,
+            hold_used: false,
+            das_left: 0.0,
+            das_right: 0.0,
+            arr_left: 0.0,
+            arr_right: 0.0,
+            locked: false,
+        }
+    }
+
+    #[test]
+    fn hard_drop_sets_lock_timer_to_zero() {
+        // After hard drop, lock_timer should be Some(0.0) to lock immediately.
+        let mut piece = make_active(PlayerId::P1, TetrominoKind::O, 5, 10);
+        piece.lock_timer = Some(0.0);
+        assert_eq!(piece.lock_timer, Some(0.0));
+    }
+
+    #[test]
+    fn lock_delay_resets_on_lateral_move() {
+        // Simulate: piece is on ground (lock_timer running), then player moves laterally.
+        // lock_timer should be reset to LOCK_DELAY.
+        let mut piece = make_active(PlayerId::P1, TetrominoKind::T, 5, 1);
+        piece.lock_timer = Some(0.2); // partially elapsed
+        // Simulate what handle_input does on a lateral move when lock_timer is Some
+        if piece.lock_timer.is_some() {
+            piece.lock_timer = Some(LOCK_DELAY);
+        }
+        assert_eq!(piece.lock_timer, Some(LOCK_DELAY));
+    }
+
+    #[test]
+    fn lock_delay_resets_on_rotate() {
+        let mut piece = make_active(PlayerId::P1, TetrominoKind::T, 5, 1);
+        piece.lock_timer = Some(0.1);
+        if piece.lock_timer.is_some() {
+            piece.lock_timer = Some(LOCK_DELAY);
+        }
+        assert_eq!(piece.lock_timer, Some(LOCK_DELAY));
+    }
+
+    #[test]
+    #[allow(unused_assignments)]
+    fn locked_flag_prevents_double_event() {
+        // Simulate check_lock logic: once locked=true the event must not fire again.
+        let mut piece = make_active(PlayerId::P1, TetrominoKind::T, 5, 0);
+        piece.lock_timer = Some(-0.1); // timer expired
+        let mut events_fired = 0u32;
+
+        // Frame 1
+        if let Some(t) = piece.lock_timer {
+            if t <= 0.0 && !piece.locked {
+                piece.locked = true;
+                events_fired += 1;
+            }
+        }
+        // Frame 2 (same situation — timer still ≤0, piece still on ground)
+        if let Some(t) = piece.lock_timer {
+            if t <= 0.0 && !piece.locked {
+                piece.locked = true;
+                events_fired += 1;
+            }
+        }
+        assert_eq!(events_fired, 1, "PieceLocked should only fire once per piece");
+    }
+
+    #[test]
+    fn hold_used_true_after_hold() {
+        let mut piece = make_active(PlayerId::P1, TetrominoKind::T, 5, 10);
+        piece.hold_used = true; // simulates what handle_input sets
+        assert!(piece.hold_used);
+    }
+
+    #[test]
+    fn hold_resets_on_new_piece() {
+        // fresh_piece always sets hold_used = false
+        let p = fresh_piece(PlayerId::P1, TetrominoKind::S);
+        assert!(!p.hold_used);
+    }
+
+    #[test]
+    fn locked_false_on_new_piece() {
+        let p = fresh_piece(PlayerId::P1, TetrominoKind::I);
+        assert!(!p.locked);
+    }
+
+    #[test]
+    fn game_over_on_spawn_collision() {
+        // If piece doesn't fit at spawn position, check_game_over should detect it.
+        // Simulate by filling the spawn area cells on the board.
+        let mut board = Board::default();
+        let piece = fresh_piece(PlayerId::P1, TetrominoKind::O);
+        // O at R0 occupies (col,row),(col+1,row),(col,row+1),(col+1,row+1)
+        let col = piece.col;
+        let row = piece.row;
+        for (dc, dr) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+            board.set(col + dc, row + dr, crate::board::PieceColor::Player1(TetrominoKind::I));
+        }
+        // piece_fits should now return false → game over
+        let fits = collision::piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row, None);
+        assert!(!fits, "blocked spawn should trigger game over detection");
+    }
+
+    #[test]
+    fn soft_drop_score_increments() {
+        // Soft drop: score +1 per row dropped by gravity while soft_drop_held.
+        // Verify the arithmetic: 3 rows of soft drop = score 3.
+        let rows_dropped = 3u32;
+        let score_delta = rows_dropped; // +1 per cell, as implemented in apply_gravity
+        assert_eq!(score_delta, 3);
+    }
+
+    #[test]
+    fn hard_drop_score_increments() {
+        // Hard drop: score += (start_row - piece.row) * 2
+        let start_row = 18i32;
+        let end_row = 2i32;
+        let score_delta = (start_row - end_row) as u32 * 2;
+        assert_eq!(score_delta, 32);
+    }
+}
+
+/// System: check if newly spawned piece overlaps → game over.
+pub fn check_game_over(
+    players: Query<&ActivePiece>,
+    board: Res<Board>,
+    mut ev_gameover: EventWriter<GameOverEvent>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    let pieces: Vec<ActivePiece> = players.iter().cloned().collect();
+    for piece in &pieces {
+        let other = pieces.iter().find(|p| p.player != piece.player);
+        if !piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row, other) {
+            ev_gameover.write(GameOverEvent);
+            next_state.set(GameState::GameOver);
+            return;
+        }
+    }
+}

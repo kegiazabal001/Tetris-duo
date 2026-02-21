@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::board::{Board, PieceColor, COLS, VISIBLE_ROWS};
 use crate::collision::{self, piece_fits};
 use crate::piece::{self, Rotation, TetrominoKind};
-use crate::player::{ActivePiece, LinesCleared, PieceBag, PlayerId};
+use crate::player::{ActivePiece, LinesCleared, PieceBag, PieceLocked, PlayerId};
 
 pub const CELL_SIZE: f32 = 28.0;
 pub const BOARD_OFFSET_X: f32 = -(COLS as f32 * CELL_SIZE) / 2.0;
@@ -18,6 +18,7 @@ const NEXT_PREVIEW_COUNT: usize = 3;
 const NEXT_PREVIEW_SLOT_H: f32 = 70.0;
 
 pub const LINE_CLEAR_FLASH_DURATION: f32 = 0.35;
+pub const LOCK_FLASH_DURATION: f32 = 0.25;
 
 // ── Color helpers ─────────────────────────────────────────────────────────────
 
@@ -70,6 +71,13 @@ fn ghost_color(player: PlayerId, kind: TetrominoKind) -> Color {
 pub struct LineClearFlash {
     pub timer: f32,
     pub pending_rows: Vec<usize>,
+}
+
+/// Brief white flash on the cells of a just-locked piece.
+#[derive(Resource, Default)]
+pub struct PieceLockFlash {
+    pub timer: f32,
+    pub cells: Vec<(usize, usize)>,
 }
 
 // ── Components ────────────────────────────────────────────────────────────────
@@ -296,10 +304,11 @@ pub fn despawn_board_visuals(
 
 // ── Systems ───────────────────────────────────────────────────────────────────
 
-/// Sync board cell colors; flashes pending-clear rows.
+/// Sync board cell colors; flashes pending-clear rows and recently locked cells.
 pub fn sync_board_cells(
     board: Res<Board>,
     flash: Res<LineClearFlash>,
+    lock_flash: Res<PieceLockFlash>,
     mut query: Query<(&BoardCellSprite, &mut Sprite)>,
 ) {
     let flash_t = if flash.timer > 0.0 {
@@ -314,12 +323,18 @@ pub fn sync_board_cells(
         0.0
     };
 
+    let lock_t = if lock_flash.timer > 0.0 {
+        lock_flash.timer / LOCK_FLASH_DURATION
+    } else {
+        0.0
+    };
+
     for (cell, mut sprite) in &mut query {
         let base = match board.cells[cell.row][cell.col] {
             Some(pc) => color_for(pc),
             None => Color::srgb(0.12, 0.12, 0.15),
         };
-        sprite.color = if pulse > 0.0 && flash.pending_rows.contains(&cell.row) {
+        let after_line_flash = if pulse > 0.0 && flash.pending_rows.contains(&cell.row) {
             let srgba = base.to_srgba();
             Color::srgba(
                 srgba.red + (1.0 - srgba.red) * pulse,
@@ -329,6 +344,17 @@ pub fn sync_board_cells(
             )
         } else {
             base
+        };
+        sprite.color = if lock_t > 0.0 && lock_flash.cells.contains(&(cell.col, cell.row)) {
+            let srgba = after_line_flash.to_srgba();
+            Color::srgba(
+                srgba.red + (1.0 - srgba.red) * lock_t,
+                srgba.green + (1.0 - srgba.green) * lock_t,
+                srgba.blue + (1.0 - srgba.blue) * lock_t,
+                srgba.alpha,
+            )
+        } else {
+            after_line_flash
         };
     }
 }
@@ -468,6 +494,32 @@ pub fn sync_preview_pieces(
                 tf.translation.y = -1000.0;
                 sprite.color = Color::NONE;
             }
+        }
+    }
+}
+
+/// Populate PieceLockFlash when a piece locks.
+pub fn on_piece_locked(
+    mut ev: EventReader<PieceLocked>,
+    mut lock_flash: ResMut<PieceLockFlash>,
+) {
+    for event in ev.read() {
+        lock_flash.timer = LOCK_FLASH_DURATION;
+        lock_flash.cells = event
+            .cells
+            .iter()
+            .filter(|&&(_, row)| row >= 0 && row < VISIBLE_ROWS as i32)
+            .map(|&(col, row)| (col as usize, row as usize))
+            .collect();
+    }
+}
+
+/// Tick the lock flash timer and clear cells when it expires.
+pub fn tick_lock_flash(time: Res<Time>, mut lock_flash: ResMut<PieceLockFlash>) {
+    if lock_flash.timer > 0.0 {
+        lock_flash.timer = (lock_flash.timer - time.delta_secs()).max(0.0);
+        if lock_flash.timer == 0.0 {
+            lock_flash.cells.clear();
         }
     }
 }

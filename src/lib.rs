@@ -23,6 +23,7 @@ impl Plugin for TetrisDuoPlugin {
             .init_resource::<board::Board>()
             .init_resource::<scoring::ScoreBoard>()
             .init_resource::<render::LineClearFlash>()
+            .init_resource::<render::PieceLockFlash>()
             .add_event::<player::PieceLocked>()
             .add_event::<player::LinesCleared>()
             .add_event::<player::PieceRotated>()
@@ -48,6 +49,7 @@ impl Plugin for TetrisDuoPlugin {
                     player::handle_input,
                     player::apply_gravity,
                     player::check_lock,
+                    render::on_piece_locked,
                     player::lock_piece,
                     scoring::update_score,
                     render::on_lines_cleared,
@@ -58,6 +60,7 @@ impl Plugin for TetrisDuoPlugin {
                     render::sync_preview_pieces,
                     ui::update_hud,
                     render::tick_flash_timer,
+                    render::tick_lock_flash,
                 )
                     .chain()
                     .run_if(in_state(GameState::Playing)),

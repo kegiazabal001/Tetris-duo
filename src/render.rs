@@ -13,7 +13,9 @@ const PREVIEW_CELL_SIZE: f32 = 20.0;
 const P1_PANEL_X: f32 = -306.0;
 const P2_PANEL_X: f32 = 306.0;
 const NEXT_PREVIEW_Y: f32 = 170.0;
-const HOLD_PREVIEW_Y: f32 = 60.0;
+const HOLD_PREVIEW_Y: f32 = -80.0;
+const NEXT_PREVIEW_COUNT: usize = 3;
+const NEXT_PREVIEW_SLOT_H: f32 = 70.0;
 
 pub const LINE_CLEAR_FLASH_DURATION: f32 = 0.35;
 
@@ -96,7 +98,8 @@ pub struct GhostBlockSprite {
 #[derive(Component)]
 pub struct NextPieceBlock {
     pub player: PlayerId,
-    pub index: usize,
+    pub slot: usize,   // 0 = siguiente, 1 = +1, 2 = +2
+    pub index: usize,  // 0..4 (bloque dentro de la pieza)
 }
 
 #[derive(Component)]
@@ -218,14 +221,15 @@ pub fn setup_board_visuals(mut commands: Commands) {
     // Panel backgrounds for P1 (left) and P2 (right)
     for (panel_x, label) in [(P1_PANEL_X, "P1"), (P2_PANEL_X, "P2")] {
         let _ = label;
-        // Next preview background
+        // Next preview background (covers 3 slots)
+        let next_panel_center_y = NEXT_PREVIEW_Y - NEXT_PREVIEW_SLOT_H;
         commands.spawn((
             Sprite {
                 color: Color::srgba(1.0, 1.0, 1.0, 0.05),
-                custom_size: Some(Vec2::new(88.0, 88.0)),
+                custom_size: Some(Vec2::new(88.0, 230.0)),
                 ..default()
             },
-            Transform::from_translation(Vec3::new(panel_x, NEXT_PREVIEW_Y, -0.5)),
+            Transform::from_translation(Vec3::new(panel_x, next_panel_center_y, -0.5)),
             BoardBackdrop,
         ));
         // Hold preview background
@@ -240,18 +244,23 @@ pub fn setup_board_visuals(mut commands: Commands) {
         ));
     }
 
-    // Next and Hold preview block sprites (4 per player each)
+    // Next and Hold preview block sprites
     for player in [PlayerId::P1, PlayerId::P2] {
+        // 3 slots × 4 blocks = 12 NextPieceBlock per player
+        for slot in 0..NEXT_PREVIEW_COUNT {
+            for index in 0..4 {
+                commands.spawn((
+                    Sprite {
+                        color: Color::NONE,
+                        custom_size: Some(Vec2::splat(PREVIEW_CELL_SIZE - 2.0)),
+                        ..default()
+                    },
+                    Transform::from_translation(Vec3::new(0.0, -1000.0, 3.0)),
+                    NextPieceBlock { player, slot, index },
+                ));
+            }
+        }
         for index in 0..4 {
-            commands.spawn((
-                Sprite {
-                    color: Color::NONE,
-                    custom_size: Some(Vec2::splat(PREVIEW_CELL_SIZE - 2.0)),
-                    ..default()
-                },
-                Transform::from_translation(Vec3::new(0.0, -1000.0, 3.0)),
-                NextPieceBlock { player, index },
-            ));
             commands.spawn((
                 Sprite {
                     color: Color::NONE,
@@ -425,8 +434,15 @@ pub fn sync_preview_pieces(
             tf.translation.y = -1000.0;
             continue;
         };
-        let kind = bag.peek();
-        tf.translation = preview_block_pos(panel_x, NEXT_PREVIEW_Y, kind, block.index);
+        let preview = bag.peek_n(NEXT_PREVIEW_COUNT);
+        if block.slot >= preview.len() {
+            tf.translation.y = -1000.0;
+            sprite.color = Color::NONE;
+            continue;
+        }
+        let kind = preview[block.slot];
+        let slot_y = NEXT_PREVIEW_Y - block.slot as f32 * NEXT_PREVIEW_SLOT_H;
+        tf.translation = preview_block_pos(panel_x, slot_y, kind, block.index);
         sprite.color = active_color(piece.player, kind);
     }
 

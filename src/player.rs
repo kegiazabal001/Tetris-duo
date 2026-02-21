@@ -81,6 +81,10 @@ impl PieceBag {
     pub fn peek(&self) -> TetrominoKind {
         self.queue[0]
     }
+
+    pub fn peek_n(&self, n: usize) -> &[TetrominoKind] {
+        &self.queue[..n.min(self.queue.len())]
+    }
 }
 
 // Events

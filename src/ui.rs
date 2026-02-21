@@ -16,6 +16,9 @@ pub struct LevelText;
 pub struct ComboText;
 
 #[derive(Component)]
+pub struct HighScoreText;
+
+#[derive(Component)]
 pub struct MenuRoot;
 
 #[derive(Component)]
@@ -57,6 +60,12 @@ pub fn setup_hud(mut commands: Commands) {
                 TextColor(Color::srgb(1.0, 0.85, 0.2)),
                 TextFont::from_font_size(16.0),
             ));
+            parent.spawn((
+                HighScoreText,
+                Text::new("Best: 0"),
+                TextColor(Color::srgb(0.6, 0.9, 1.0)),
+                TextFont::from_font_size(16.0),
+            ));
         });
 }
 
@@ -69,9 +78,22 @@ pub fn despawn_hud(mut commands: Commands, query: Query<Entity, With<HudRoot>>) 
 #[allow(clippy::type_complexity)]
 pub fn update_hud(
     score: Res<ScoreBoard>,
-    mut score_q: Query<&mut Text, (With<ScoreText>, Without<LevelText>, Without<ComboText>)>,
-    mut level_q: Query<&mut Text, (With<LevelText>, Without<ScoreText>, Without<ComboText>)>,
-    mut combo_q: Query<&mut Text, (With<ComboText>, Without<ScoreText>, Without<LevelText>)>,
+    mut score_q: Query<
+        &mut Text,
+        (With<ScoreText>, Without<LevelText>, Without<ComboText>, Without<HighScoreText>),
+    >,
+    mut level_q: Query<
+        &mut Text,
+        (With<LevelText>, Without<ScoreText>, Without<ComboText>, Without<HighScoreText>),
+    >,
+    mut combo_q: Query<
+        &mut Text,
+        (With<ComboText>, Without<ScoreText>, Without<LevelText>, Without<HighScoreText>),
+    >,
+    mut hs_q: Query<
+        &mut Text,
+        (With<HighScoreText>, Without<ScoreText>, Without<LevelText>, Without<ComboText>),
+    >,
 ) {
     for mut text in &mut score_q {
         **text = format!("Score: {}", score.score);
@@ -85,6 +107,9 @@ pub fn update_hud(
         } else {
             String::new()
         };
+    }
+    for mut text in &mut hs_q {
+        **text = format!("Best: {}", score.high_score);
     }
 }
 
@@ -209,6 +234,11 @@ pub fn setup_game_over(mut commands: Commands, score: Res<ScoreBoard>) {
                 TextFont::from_font_size(28.0),
             ));
             parent.spawn((
+                Text::new(format!("Best: {}", score.high_score.max(score.score))),
+                TextColor(Color::srgb(0.6, 0.9, 1.0)),
+                TextFont::from_font_size(22.0),
+            ));
+            parent.spawn((
                 Text::new("Press SPACE to restart"),
                 TextColor(Color::srgb(0.7, 0.7, 0.7)),
                 TextFont::from_font_size(24.0),
@@ -229,7 +259,9 @@ pub fn game_over_input(
     mut board: ResMut<Board>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
+        let high_score = score.high_score;
         *score = ScoreBoard::default();
+        score.high_score = high_score;
         *board = Board::default();
         next_state.set(GameState::Playing);
     }

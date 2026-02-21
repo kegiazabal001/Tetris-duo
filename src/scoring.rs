@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 
 use crate::piece::TSpinType;
-use crate::player::LinesCleared;
+use crate::player::{GameOverEvent, LinesCleared};
+
+const HIGH_SCORE_FILE: &str = "high_score.txt";
 
 #[derive(Event)]
 pub struct LevelUpEvent {
@@ -18,6 +20,7 @@ pub struct ScoreBoard {
     /// True if the last "hard" clear was a Tetris (4 lines) or Full T-Spin.
     /// Used to award Back-to-Back bonus.
     pub last_was_hard_clear: bool,
+    pub high_score: u32,
 }
 
 impl Default for ScoreBoard {
@@ -28,6 +31,24 @@ impl Default for ScoreBoard {
             level: 1,
             combo: -1,
             last_was_hard_clear: false,
+            high_score: 0,
+        }
+    }
+}
+
+pub fn load_high_score(mut score: ResMut<ScoreBoard>) {
+    if let Ok(contents) = std::fs::read_to_string(HIGH_SCORE_FILE) {
+        if let Ok(value) = contents.trim().parse::<u32>() {
+            score.high_score = value;
+        }
+    }
+}
+
+pub fn save_high_score(mut score: ResMut<ScoreBoard>, mut ev: EventReader<GameOverEvent>) {
+    for _ in ev.read() {
+        if score.score > score.high_score {
+            score.high_score = score.score;
+            let _ = std::fs::write(HIGH_SCORE_FILE, score.high_score.to_string());
         }
     }
 }

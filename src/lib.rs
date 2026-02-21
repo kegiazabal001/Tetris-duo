@@ -1,3 +1,4 @@
+pub mod audio;
 pub mod board;
 pub mod collision;
 pub mod input;
@@ -29,6 +30,8 @@ impl Plugin for TetrisDuoPlugin {
             .add_event::<player::PieceRotated>()
             .add_event::<player::GameOverEvent>()
             .add_event::<scoring::LevelUpEvent>()
+            // Startup
+            .add_systems(Startup, (scoring::load_high_score, audio::load_audio))
             // Menu
             .add_systems(OnEnter(GameState::Menu), ui::setup_menu)
             .add_systems(OnExit(GameState::Menu), ui::despawn_menu)
@@ -46,21 +49,33 @@ impl Plugin for TetrisDuoPlugin {
             .add_systems(
                 Update,
                 (
-                    player::handle_input,
-                    player::apply_gravity,
-                    player::check_lock,
-                    render::on_piece_locked,
-                    player::lock_piece,
-                    scoring::update_score,
-                    render::on_lines_cleared,
-                    player::check_game_over,
-                    render::sync_board_cells,
-                    render::sync_active_pieces,
-                    render::sync_ghost_pieces,
-                    render::sync_preview_pieces,
-                    ui::update_hud,
-                    render::tick_flash_timer,
-                    render::tick_lock_flash,
+                    (
+                        player::handle_input,
+                        player::apply_gravity,
+                        player::check_lock,
+                        render::on_piece_locked,
+                        player::lock_piece,
+                        scoring::update_score,
+                        render::on_lines_cleared,
+                        render::spawn_popups,
+                        render::on_level_up,
+                        scoring::save_high_score,
+                        audio::play_piece_sounds,
+                        audio::play_rotate_sound,
+                    ),
+                    (
+                        audio::play_level_up_sound,
+                        audio::play_game_over_sound,
+                        player::check_game_over,
+                        render::sync_board_cells,
+                        render::sync_active_pieces,
+                        render::sync_ghost_pieces,
+                        render::sync_preview_pieces,
+                        ui::update_hud,
+                        render::tick_flash_timer,
+                        render::tick_lock_flash,
+                        render::tick_popups,
+                    ),
                 )
                     .chain()
                     .run_if(in_state(GameState::Playing)),

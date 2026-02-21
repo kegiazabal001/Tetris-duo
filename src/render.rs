@@ -3,7 +3,9 @@ use bevy::prelude::*;
 use crate::board::{Board, PieceColor, COLS, VISIBLE_ROWS};
 use crate::collision::{self, piece_fits};
 use crate::piece::{self, Rotation, TetrominoKind};
+use crate::piece::TSpinType;
 use crate::player::{ActivePiece, LinesCleared, PieceBag, PieceLocked, PlayerId};
+use crate::scoring::{LevelUpEvent, ScoreBoard};
 
 pub const CELL_SIZE: f32 = 28.0;
 pub const BOARD_OFFSET_X: f32 = -(COLS as f32 * CELL_SIZE) / 2.0;
@@ -81,6 +83,12 @@ pub struct PieceLockFlash {
 }
 
 // ── Components ────────────────────────────────────────────────────────────────
+
+#[derive(Component)]
+pub struct PopupText {
+    pub lifetime: f32,
+    pub total: f32,
+}
 
 #[derive(Component)]
 pub struct BoardBackdrop;
@@ -290,6 +298,7 @@ pub fn despawn_board_visuals(
     q4: Query<Entity, With<BoardBackdrop>>,
     q5: Query<Entity, With<NextPieceBlock>>,
     q6: Query<Entity, With<HoldPieceBlock>>,
+    q7: Query<Entity, With<PopupText>>,
 ) {
     for e in q1.iter()
         .chain(q2.iter())
@@ -297,6 +306,7 @@ pub fn despawn_board_visuals(
         .chain(q4.iter())
         .chain(q5.iter())
         .chain(q6.iter())
+        .chain(q7.iter())
     {
         commands.entity(e).despawn();
     }
@@ -521,5 +531,82 @@ pub fn tick_lock_flash(time: Res<Time>, mut lock_flash: ResMut<PieceLockFlash>) 
         if lock_flash.timer == 0.0 {
             lock_flash.cells.clear();
         }
+    }
+}
+
+// ── Popup helpers ──────────────────────────────────────────────────────────────
+
+fn spawn_popup(commands: &mut Commands, text: &str, pos: Vec3, lifetime: f32) {
+    commands.spawn((
+        Text2d::new(text.to_string()),
+        TextFont::from_font_size(28.0),
+        TextColor(Color::WHITE),
+        Transform::from_translation(pos),
+        PopupText { lifetime, total: lifetime },
+    ));
+}
+
+/// Spawn action popups (TETRIS!, T-SPIN!, COMBO ×N, DOUBLE, TRIPLE) on line clears.
+pub fn spawn_popups(
+    mut commands: Commands,
+    mut ev: EventReader<LinesCleared>,
+    score: Res<ScoreBoard>,
+) {
+    for event in ev.read() {
+        if event.count == 0 {
+            continue;
+        }
+        let x = match event.player {
+            PlayerId::P1 => -200.0_f32,
+            PlayerId::P2 => 200.0_f32,
+        };
+        let label = match (event.count, event.t_spin) {
+            (4, TSpinType::None) => Some("TETRIS!"),
+            (_, TSpinType::Full)  => Some("T-SPIN!"),
+            (_, TSpinType::Mini)  => Some("T-SPIN MINI"),
+            (3, _) => Some("TRIPLE"),
+            (2, _) => Some("DOUBLE"),
+            _ => None,
+        };
+        if let Some(text) = label {
+            spawn_popup(&mut commands, text, Vec3::new(x, 40.0, 10.0), 1.5);
+        }
+        if score.combo > 0 {
+            let combo_text = format!("COMBO ×{}", score.combo);
+            spawn_popup(&mut commands, &combo_text, Vec3::new(x, 10.0, 10.0), 1.5);
+        }
+    }
+}
+
+/// Spawn "LEVEL X!" popup when level increases.
+pub fn on_level_up(mut commands: Commands, mut ev: EventReader<LevelUpEvent>) {
+    for event in ev.read() {
+        let text = format!("LEVEL {}!", event.new_level);
+        spawn_popup(&mut commands, &text, Vec3::new(0.0, 80.0, 10.0), 2.0);
+    }
+}
+
+/// Move popups upward and fade them out; despawn when expired.
+pub fn tick_popups(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut Transform, &mut TextColor, &mut PopupText)>,
+) {
+    let dt = time.delta_secs();
+    for (entity, mut tf, mut color, mut popup) in &mut query {
+        popup.lifetime -= dt;
+        if popup.lifetime <= 0.0 {
+            commands.entity(entity).despawn();
+            continue;
+        }
+        tf.translation.y += 40.0 * dt;
+        // Fade out in the last 50 % of the lifetime
+        let fade_start = popup.total * 0.5;
+        let alpha = if popup.lifetime < fade_start {
+            popup.lifetime / fade_start
+        } else {
+            1.0
+        };
+        color.0 = Color::srgba(1.0, 1.0, 1.0, alpha);
     }
 }

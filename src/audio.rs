@@ -1,0 +1,77 @@
+use bevy::prelude::*;
+
+use crate::piece::TSpinType;
+use crate::player::{GameOverEvent, LinesCleared, PieceRotated};
+use crate::scoring::LevelUpEvent;
+
+#[derive(Resource)]
+pub struct AudioAssets {
+    pub rotate: Handle<AudioSource>,
+    pub land: Handle<AudioSource>,
+    pub line_clear: Handle<AudioSource>,
+    pub tetris: Handle<AudioSource>,
+    pub level_up: Handle<AudioSource>,
+    pub game_over: Handle<AudioSource>,
+}
+
+fn play(commands: &mut Commands, handle: Handle<AudioSource>) {
+    commands.spawn((AudioPlayer::new(handle), PlaybackSettings::ONCE));
+}
+
+pub fn load_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.insert_resource(AudioAssets {
+        rotate: asset_server.load("audio/rotate.ogg"),
+        land: asset_server.load("audio/land.ogg"),
+        line_clear: asset_server.load("audio/line_clear.ogg"),
+        tetris: asset_server.load("audio/tetris.ogg"),
+        level_up: asset_server.load("audio/level_up.ogg"),
+        game_over: asset_server.load("audio/game_over.ogg"),
+    });
+}
+
+pub fn play_piece_sounds(
+    mut commands: Commands,
+    audio: Res<AudioAssets>,
+    mut ev_locked: EventReader<LinesCleared>,
+) {
+    for event in ev_locked.read() {
+        let handle = if event.count >= 4 || matches!(event.t_spin, TSpinType::Full) {
+            audio.tetris.clone()
+        } else if event.count > 0 {
+            audio.line_clear.clone()
+        } else {
+            audio.land.clone()
+        };
+        play(&mut commands, handle);
+    }
+}
+
+pub fn play_rotate_sound(
+    mut commands: Commands,
+    audio: Res<AudioAssets>,
+    mut ev: EventReader<PieceRotated>,
+) {
+    for _ in ev.read() {
+        play(&mut commands, audio.rotate.clone());
+    }
+}
+
+pub fn play_level_up_sound(
+    mut commands: Commands,
+    audio: Res<AudioAssets>,
+    mut ev: EventReader<LevelUpEvent>,
+) {
+    for _ in ev.read() {
+        play(&mut commands, audio.level_up.clone());
+    }
+}
+
+pub fn play_game_over_sound(
+    mut commands: Commands,
+    audio: Res<AudioAssets>,
+    mut ev: EventReader<GameOverEvent>,
+) {
+    for _ in ev.read() {
+        play(&mut commands, audio.game_over.clone());
+    }
+}

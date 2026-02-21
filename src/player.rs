@@ -87,13 +87,20 @@ impl PieceBag {
 #[derive(Event)]
 pub struct PieceLocked {
     pub player: PlayerId,
+    pub cells: [(i32, i32); 4],
 }
 
 /// Emitted when lines are cleared (or count=0 when a piece locks without clearing, for combo reset).
 #[derive(Event)]
 pub struct LinesCleared {
+    pub player: PlayerId,
     pub count: u32,
     pub t_spin: TSpinType,
+}
+
+#[derive(Event)]
+pub struct PieceRotated {
+    pub player: PlayerId,
 }
 
 #[derive(Event)]
@@ -150,6 +157,7 @@ pub fn handle_input(
     mut players: Query<(&ActionState<PieceAction>, &mut ActivePiece, &mut PieceBag)>,
     board: Res<Board>,
     mut score: ResMut<ScoreBoard>,
+    mut ev_rotate: EventWriter<PieceRotated>,
 ) {
     let dt = time.delta_secs();
     let pieces: Vec<ActivePiece> = players.iter().map(|(_, ap, _)| ap.clone()).collect();
@@ -268,6 +276,7 @@ pub fn handle_input(
                 if piece.lock_timer.is_some() {
                     piece.lock_timer = Some(LOCK_DELAY);
                 }
+                ev_rotate.write(PieceRotated { player: piece.player });
             }
         }
 
@@ -283,6 +292,7 @@ pub fn handle_input(
                 if piece.lock_timer.is_some() {
                     piece.lock_timer = Some(LOCK_DELAY);
                 }
+                ev_rotate.write(PieceRotated { player: piece.player });
             }
         }
     }
@@ -339,7 +349,8 @@ pub fn check_lock(
             *timer -= time.delta_secs();
             if *timer <= 0.0 && !piece.locked {
                 piece.locked = true;
-                ev_lock.write(PieceLocked { player: piece.player });
+                let cells = collision::absolute_cells(piece.kind, piece.rotation, piece.col, piece.row);
+                ev_lock.write(PieceLocked { player: piece.player, cells });
             }
         } else {
             piece.lock_timer = None;
@@ -380,7 +391,7 @@ pub fn lock_piece(
             let count = board.detect_full_rows().len() as u32;
 
             // Always emit so update_score can manage the combo counter
-            ev_lines.write(LinesCleared { count, t_spin });
+            ev_lines.write(LinesCleared { player: piece.player, count, t_spin });
 
             // Spawn next piece
             let next_kind = bag.pop();

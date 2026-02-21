@@ -25,7 +25,9 @@ impl Plugin for TetrisDuoPlugin {
             .init_resource::<render::LineClearFlash>()
             .add_event::<player::PieceLocked>()
             .add_event::<player::LinesCleared>()
+            .add_event::<player::PieceRotated>()
             .add_event::<player::GameOverEvent>()
+            .add_event::<scoring::LevelUpEvent>()
             // Menu
             .add_systems(OnEnter(GameState::Menu), ui::setup_menu)
             .add_systems(OnExit(GameState::Menu), ui::despawn_menu)

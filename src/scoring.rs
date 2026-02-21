@@ -3,6 +3,11 @@ use bevy::prelude::*;
 use crate::piece::TSpinType;
 use crate::player::LinesCleared;
 
+#[derive(Event)]
+pub struct LevelUpEvent {
+    pub new_level: u32,
+}
+
 #[derive(Resource, Debug)]
 pub struct ScoreBoard {
     pub score: u32,
@@ -50,7 +55,11 @@ impl ScoreBoard {
 }
 
 /// System: update score from LinesCleared events.
-pub fn update_score(mut score: ResMut<ScoreBoard>, mut ev: EventReader<LinesCleared>) {
+pub fn update_score(
+    mut score: ResMut<ScoreBoard>,
+    mut ev: EventReader<LinesCleared>,
+    mut ev_level_up: EventWriter<LevelUpEvent>,
+) {
     for event in ev.read() {
         if event.count == 0 {
             // Piece locked without clearing — reset combo
@@ -98,7 +107,11 @@ pub fn update_score(mut score: ResMut<ScoreBoard>, mut ev: EventReader<LinesClea
 
         score.score += base * score.level * btb_mult / 2 + combo_bonus;
         score.lines_cleared += event.count;
-        score.level = 1 + score.lines_cleared / 10;
+        let new_level = 1 + score.lines_cleared / 10;
+        if new_level > score.level {
+            score.level = new_level;
+            ev_level_up.write(LevelUpEvent { new_level });
+        }
     }
 }
 
@@ -109,7 +122,7 @@ mod tests {
     use crate::player::LinesCleared;
 
     fn cleared(count: u32, t_spin: TSpinType) -> LinesCleared {
-        LinesCleared { count, t_spin }
+        LinesCleared { player: crate::player::PlayerId::P1, count, t_spin }
     }
 
     fn score_for(events: &[LinesCleared]) -> u32 {

@@ -341,12 +341,11 @@ pub fn check_lock(
     board: Res<Board>,
     mut ev_lock: EventWriter<PieceLocked>,
 ) {
-    let pieces: Vec<ActivePiece> = players.iter().cloned().collect();
-
     for mut piece in &mut players {
-        let other = pieces.iter().find(|p| p.player != piece.player);
+        // on_ground only checks fixed board cells — not the other player's live piece.
+        // A live piece should never trigger lock on a neighbour that may still move away.
         let on_ground =
-            !piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row - 1, other);
+            !piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row - 1, None);
 
         if on_ground {
             let timer = piece.lock_timer.get_or_insert(LOCK_DELAY);

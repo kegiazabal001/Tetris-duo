@@ -10,6 +10,12 @@ use crate::piece::{Rotation, TSpinType, TetrominoKind};
 use crate::scoring::ScoreBoard;
 use crate::state::GameState;
 
+/// Blocks input processing for one frame after entering Playing state,
+/// preventing the Space/Enter press used to start/restart the game from
+/// being interpreted as a hard-drop on the very first frame.
+#[derive(Resource, Default)]
+pub struct InputGrace(pub bool);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 pub enum PlayerId {
     P1,
@@ -162,7 +168,12 @@ pub fn handle_input(
     board: Res<Board>,
     mut score: ResMut<ScoreBoard>,
     mut ev_rotate: EventWriter<PieceRotated>,
+    mut grace: ResMut<InputGrace>,
 ) {
+    if grace.0 {
+        grace.0 = false;
+        return;
+    }
     let dt = time.delta_secs();
     let pieces: Vec<ActivePiece> = players.iter().map(|(_, ap, _)| ap.clone()).collect();
 

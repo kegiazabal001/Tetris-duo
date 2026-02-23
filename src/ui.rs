@@ -135,8 +135,13 @@ pub fn setup_pause(mut commands: Commands) {
                 TextFont::from_font_size(56.0),
             ));
             parent.spawn((
-                Text::new("Press ESC to resume"),
+                Text::new("ESC — resume"),
                 TextColor(Color::srgb(0.7, 0.7, 0.7)),
+                TextFont::from_font_size(22.0),
+            ));
+            parent.spawn((
+                Text::new("Q — quit to menu"),
+                TextColor(Color::srgb(0.9, 0.4, 0.4)),
                 TextFont::from_font_size(22.0),
             ));
         });
@@ -268,17 +273,25 @@ pub fn game_over_input(
 }
 
 use crate::board::Board;
+use crate::state::QuitToMenu;
 
 pub fn pause_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     state: Res<State<GameState>>,
     mut next_state: ResMut<NextState<GameState>>,
+    mut quit_to_menu: ResMut<QuitToMenu>,
 ) {
     if keyboard.just_pressed(KeyCode::Escape) {
         match state.get() {
             GameState::Playing => next_state.set(GameState::Paused),
             GameState::Paused => next_state.set(GameState::Playing),
             _ => {}
+        }
+    }
+    if keyboard.just_pressed(KeyCode::KeyQ) {
+        if *state.get() == GameState::Paused {
+            quit_to_menu.0 = true;
+            next_state.set(GameState::Menu);
         }
     }
 }

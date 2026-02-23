@@ -186,12 +186,12 @@ pub fn setup_menu(mut commands: Commands) {
                 TextFont::from_font_size(24.0),
             ));
             parent.spawn((
-                Text::new("P1: A/D move  W hard-drop  S soft-drop  Q/E rotate  LShift hold"),
+                Text::new("P1: A/D move  W rotate  S soft-drop  Q/E rotate  LShift hold"),
                 TextColor(Color::srgb(0.4, 0.65, 1.0)),
                 TextFont::from_font_size(15.0),
             ));
             parent.spawn((
-                Text::new("P2: </> move  Up hard-drop  Dn soft-drop  ,/. rotate  RShift hold"),
+                Text::new("P2: </> move  Up/- rotate  Dn soft-drop  RCtrl rotate  RShift hold"),
                 TextColor(Color::srgb(1.0, 0.75, 0.55)),
                 TextFont::from_font_size(15.0),
             ));

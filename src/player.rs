@@ -223,14 +223,17 @@ pub fn handle_input(
     mut score: ResMut<ScoreBoard>,
     mut ev_rotate: EventWriter<PieceRotated>,
     mut grace: ResMut<InputGrace>,
+    keyboard: Res<ButtonInput<KeyCode>>,
 ) {
     if grace.0 {
-        // Keep blocking input until HardDrop is fully released on all players,
-        // so Space pressed in the menu doesn't immediately hard-drop the first piece.
-        let any_hard_drop_held = players
-            .iter()
-            .any(|(action, _, _)| action.pressed(&PieceAction::HardDrop));
-        if !any_hard_drop_held {
+        // Block until the hard-drop keys are physically released. We check Bevy's raw
+        // ButtonInput rather than leafwing's ActionState because the player entities are
+        // spawned fresh in OnEnter(Playing) — leafwing hasn't seen their history, so on
+        // the first frame it processes them it reports just_pressed=true while Space is
+        // still held, even though the ActionState doesn't reflect it yet.
+        let hard_drop_keys = [KeyCode::Space, KeyCode::Enter];
+        let any_held = hard_drop_keys.iter().any(|k| keyboard.pressed(*k));
+        if !any_held {
             grace.0 = false;
         }
         return;

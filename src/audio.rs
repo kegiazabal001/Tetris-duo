@@ -12,7 +12,12 @@ pub struct AudioAssets {
     pub tetris: Handle<AudioSource>,
     pub level_up: Handle<AudioSource>,
     pub game_over: Handle<AudioSource>,
+    pub music: Handle<AudioSource>,
 }
+
+/// Marker component for the background music entity.
+#[derive(Component)]
+pub struct BgMusic;
 
 fn play(commands: &mut Commands, handle: Handle<AudioSource>) {
     commands.spawn((AudioPlayer::new(handle), PlaybackSettings::ONCE));
@@ -26,7 +31,22 @@ pub fn load_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
         tetris: asset_server.load("audio/tetris.ogg"),
         level_up: asset_server.load("audio/level_up.ogg"),
         game_over: asset_server.load("audio/game_over.ogg"),
+        music: asset_server.load("audio/Casual_8bit.wav"),
     });
+}
+
+pub fn start_bg_music(mut commands: Commands, audio: Res<AudioAssets>) {
+    commands.spawn((
+        AudioPlayer::new(audio.music.clone()),
+        PlaybackSettings::LOOP,
+        BgMusic,
+    ));
+}
+
+pub fn stop_bg_music(mut commands: Commands, query: Query<Entity, With<BgMusic>>) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
 }
 
 pub fn play_piece_sounds(

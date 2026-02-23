@@ -36,7 +36,7 @@ impl Plugin for TetrisDuoPlugin {
             // Startup
             .add_systems(Startup, (scoring::load_high_score, audio::load_audio))
             // Menu
-            .add_systems(OnEnter(GameState::Menu), ui::setup_menu)
+            .add_systems(OnEnter(GameState::Menu), (ui::setup_menu, audio::start_bg_music))
             .add_systems(OnExit(GameState::Menu), ui::despawn_menu)
             .add_systems(Update, ui::menu_input.run_if(in_state(GameState::Menu)))
             // Playing: enter/exit
@@ -96,7 +96,7 @@ impl Plugin for TetrisDuoPlugin {
             )
             .add_systems(Update, ui::pause_input)
             // Game Over
-            .add_systems(OnEnter(GameState::GameOver), ui::setup_game_over)
+            .add_systems(OnEnter(GameState::GameOver), (ui::setup_game_over, audio::stop_bg_music))
             .add_systems(OnExit(GameState::GameOver), ui::despawn_game_over)
             .add_systems(
                 Update,

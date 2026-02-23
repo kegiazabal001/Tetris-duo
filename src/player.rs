@@ -225,7 +225,14 @@ pub fn handle_input(
     mut grace: ResMut<InputGrace>,
 ) {
     if grace.0 {
-        grace.0 = false;
+        // Keep blocking input until HardDrop is fully released on all players,
+        // so Space pressed in the menu doesn't immediately hard-drop the first piece.
+        let any_hard_drop_held = players
+            .iter()
+            .any(|(action, _, _)| action.pressed(&PieceAction::HardDrop));
+        if !any_hard_drop_held {
+            grace.0 = false;
+        }
         return;
     }
     let dt = time.delta_secs();

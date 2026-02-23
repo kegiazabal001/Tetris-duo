@@ -34,7 +34,8 @@ impl Plugin for TetrisDuoPlugin {
             .add_event::<player::GameOverEvent>()
             .add_event::<scoring::LevelUpEvent>()
             // Startup
-            .add_systems(Startup, (scoring::load_high_score, audio::load_audio))
+            .add_systems(PreStartup, audio::load_audio)
+            .add_systems(Startup, scoring::load_high_score)
             // Menu
             .add_systems(OnEnter(GameState::Menu), (ui::setup_menu, audio::start_bg_music))
             .add_systems(OnExit(GameState::Menu), ui::despawn_menu)

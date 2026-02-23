@@ -34,7 +34,7 @@ pub fn input_map_for(player: PlayerId) -> InputMap<PieceAction> {
             map.insert(PieceAction::HardDrop, KeyCode::Enter);
             map.insert(PieceAction::RotateCCW, KeyCode::ControlRight);
             map.insert(PieceAction::RotateCW, KeyCode::ArrowUp);
-            map.insert(PieceAction::RotateCW, KeyCode::Minus);
+            map.insert(PieceAction::RotateCW, KeyCode::Slash);
             map.insert(PieceAction::Hold, KeyCode::ShiftRight);
         }
     }

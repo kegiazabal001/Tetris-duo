@@ -103,7 +103,7 @@ pub fn update_hud(
     }
     for mut text in &mut combo_q {
         **text = if score.combo > 0 {
-            format!("Combo ×{}", score.combo + 1)
+            format!("Combo x{}", score.combo + 1)
         } else {
             String::new()
         };
@@ -135,12 +135,12 @@ pub fn setup_pause(mut commands: Commands) {
                 TextFont::from_font_size(56.0),
             ));
             parent.spawn((
-                Text::new("ESC — resume"),
+                Text::new("ESC - resume"),
                 TextColor(Color::srgb(0.7, 0.7, 0.7)),
                 TextFont::from_font_size(22.0),
             ));
             parent.spawn((
-                Text::new("Q — quit to menu"),
+                Text::new("Q - quit to menu"),
                 TextColor(Color::srgb(0.9, 0.4, 0.4)),
                 TextFont::from_font_size(22.0),
             ));
@@ -175,7 +175,7 @@ pub fn setup_menu(mut commands: Commands) {
                 TextFont::from_font_size(48.0),
             ));
             parent.spawn((
-                Text::new("Cooperativo — ¡completad líneas juntos!"),
+                Text::new("Cooperativo - completad lineas juntos!"),
                 TextColor(Color::srgb(0.6, 0.9, 0.6)),
                 TextFont::from_font_size(18.0),
             ));
@@ -185,12 +185,12 @@ pub fn setup_menu(mut commands: Commands) {
                 TextFont::from_font_size(24.0),
             ));
             parent.spawn((
-                Text::new("P1: A/D mover  W hard-drop  S soft-drop  Q/E rotar  ShiftIzq hold"),
+                Text::new("P1: A/D move  W hard-drop  S soft-drop  Q/E rotate  LShift hold"),
                 TextColor(Color::srgb(0.4, 0.65, 1.0)),
                 TextFont::from_font_size(15.0),
             ));
             parent.spawn((
-                Text::new("P2: ←/→ mover  ↑ hard-drop  ↓ soft-drop  ,/. rotar  ShiftDer hold"),
+                Text::new("P2: </> move  Up hard-drop  Dn soft-drop  ,/. rotate  RShift hold"),
                 TextColor(Color::srgb(1.0, 0.75, 0.55)),
                 TextFont::from_font_size(15.0),
             ));

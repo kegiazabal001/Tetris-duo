@@ -572,7 +572,7 @@ pub fn spawn_popups(
             spawn_popup(&mut commands, text, Vec3::new(x, 40.0, 10.0), 1.5);
         }
         if score.combo > 0 {
-            let combo_text = format!("COMBO ×{}", score.combo);
+            let combo_text = format!("COMBO x{}", score.combo);
             spawn_popup(&mut commands, &combo_text, Vec3::new(x, 10.0, 10.0), 1.5);
         }
     }

@@ -1,10 +1,12 @@
+use std::collections::VecDeque;
+
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 
 use crate::board::{Board, PieceColor, COLS, VISIBLE_ROWS};
-use crate::collision::{self, piece_fits};
+use crate::collision::{self, piece_fits, PiecePos};
 use crate::input::{input_map_for, PieceAction};
 use crate::piece::{Rotation, TSpinType, TetrominoKind};
 use crate::scoring::ScoreBoard;
@@ -60,12 +62,12 @@ pub struct ActivePiece {
 #[derive(Component, Debug)]
 pub struct PieceBag {
     pub player: PlayerId,
-    pub queue: Vec<TetrominoKind>,
+    pub queue: VecDeque<TetrominoKind>,
 }
 
 impl PieceBag {
     pub fn new(player: PlayerId) -> Self {
-        let mut bag = Self { player, queue: Vec::new() };
+        let mut bag = Self { player, queue: VecDeque::new() };
         bag.refill();
         bag.refill(); // start with 14 pieces
         bag
@@ -81,15 +83,17 @@ impl PieceBag {
         if self.queue.len() <= 7 {
             self.refill();
         }
-        self.queue.remove(0)
+        self.queue.pop_front().unwrap()
     }
 
     pub fn peek(&self) -> TetrominoKind {
         self.queue[0]
     }
 
-    pub fn peek_n(&self, n: usize) -> &[TetrominoKind] {
-        &self.queue[..n.min(self.queue.len())]
+    /// Returns the next N pieces as a stack-allocated array.
+    /// Panics if the queue has fewer than N pieces (guaranteed not to happen in normal play).
+    pub fn peek_n<const N: usize>(&self) -> [TetrominoKind; N] {
+        std::array::from_fn(|i| self.queue[i])
     }
 }
 
@@ -116,9 +120,24 @@ pub struct PieceRotated {
 #[derive(Event)]
 pub struct GameOverEvent;
 
-const LOCK_DELAY: f32 = 0.5;
+pub(crate) const LOCK_DELAY: f32 = 0.5;
 const DAS_DELAY: f32 = 0.167;
 const ARR_RATE: f32 = 0.033;
+
+impl ActivePiece {
+    /// Resets the lock-delay timer back to LOCK_DELAY when the piece is on the ground.
+    /// Used after any successful move or rotation to extend the grace period.
+    pub fn reset_lock_if_active(&mut self) {
+        if self.lock_timer.is_some() {
+            self.lock_timer = Some(LOCK_DELAY);
+        }
+    }
+
+    /// Returns the minimal position snapshot needed for collision checks.
+    pub fn to_piece_pos(&self) -> PiecePos {
+        PiecePos { kind: self.kind, rotation: self.rotation, col: self.col, row: self.row }
+    }
+}
 
 fn fresh_piece(player: PlayerId, kind: TetrominoKind) -> ActivePiece {
     ActivePiece {
@@ -138,6 +157,41 @@ fn fresh_piece(player: PlayerId, kind: TetrominoKind) -> ActivePiece {
         arr_left: 0.0,
         arr_right: 0.0,
         locked: false,
+    }
+}
+
+/// Attempts to move a piece laterally by `dc` columns.
+/// On success updates col, clears `last_was_rotation`, and resets the lock timer.
+/// Returns true if the move succeeded.
+fn try_lateral_move(piece: &mut ActivePiece, board: &Board, other: Option<PiecePos>, dc: i32) -> bool {
+    if piece_fits(board, piece.kind, piece.rotation, piece.col + dc, piece.row, other) {
+        piece.col += dc;
+        piece.last_was_rotation = false;
+        piece.reset_lock_if_active();
+        true
+    } else {
+        false
+    }
+}
+
+/// Attempts to rotate a piece (CW or CCW) using SRS wall kicks.
+/// On success updates position/rotation, sets `last_was_rotation`, resets lock timer, and emits event.
+fn apply_rotation(
+    piece: &mut ActivePiece,
+    board: &Board,
+    other: Option<PiecePos>,
+    to: Rotation,
+    ev_rotate: &mut EventWriter<PieceRotated>,
+) {
+    if let Some((nc, nr, nrot)) =
+        collision::try_rotate(board, piece.kind, piece.rotation, to, piece.col, piece.row, other)
+    {
+        piece.col = nc;
+        piece.row = nr;
+        piece.rotation = nrot;
+        piece.last_was_rotation = true;
+        piece.reset_lock_if_active();
+        ev_rotate.write(PieceRotated { player: piece.player });
     }
 }
 
@@ -175,10 +229,17 @@ pub fn handle_input(
         return;
     }
     let dt = time.delta_secs();
-    let pieces: Vec<ActivePiece> = players.iter().map(|(_, ap, _)| ap.clone()).collect();
+    // Collect minimal position snapshots — no heap allocation, avoids cloning full ActivePiece.
+    let snapshots: [Option<(PlayerId, PiecePos)>; 2] = {
+        let mut it = players.iter();
+        [
+            it.next().map(|(_, ap, _)| (ap.player, ap.to_piece_pos())),
+            it.next().map(|(_, ap, _)| (ap.player, ap.to_piece_pos())),
+        ]
+    };
 
     for (action, mut piece, mut bag) in &mut players {
-        let other = pieces.iter().find(|p| p.player != piece.player);
+        let other = snapshots.iter().flatten().find(|(pid, _)| *pid != piece.player).map(|(_, pos)| *pos);
 
         // --- Hold piece ---
         if action.just_pressed(&PieceAction::Hold) && !piece.hold_used {
@@ -187,8 +248,6 @@ pub fn handle_input(
                 None => bag.pop(),
             };
             let held_kind = piece.kind;
-            let hold_hold = piece.hold; // preserve existing hold info for display
-            let _ = hold_hold;
             *piece = fresh_piece(piece.player, new_kind);
             piece.hold = Some(held_kind);
             piece.hold_used = true;
@@ -201,26 +260,14 @@ pub fn handle_input(
             piece.arr_left = 0.0;
             piece.das_right = 0.0;
             piece.arr_right = 0.0;
-            if piece_fits(&board, piece.kind, piece.rotation, piece.col - 1, piece.row, other) {
-                piece.col -= 1;
-                piece.last_was_rotation = false;
-                if piece.lock_timer.is_some() {
-                    piece.lock_timer = Some(LOCK_DELAY);
-                }
-            }
+            try_lateral_move(&mut piece, &board, other, -1);
         } else if action.pressed(&PieceAction::MoveLeft) {
             piece.das_left += dt;
             if piece.das_left >= DAS_DELAY {
                 piece.arr_left += dt;
                 while piece.arr_left >= ARR_RATE {
                     piece.arr_left -= ARR_RATE;
-                    if piece_fits(&board, piece.kind, piece.rotation, piece.col - 1, piece.row, other) {
-                        piece.col -= 1;
-                        piece.last_was_rotation = false;
-                        if piece.lock_timer.is_some() {
-                            piece.lock_timer = Some(LOCK_DELAY);
-                        }
-                    } else {
+                    if !try_lateral_move(&mut piece, &board, other, -1) {
                         piece.arr_left = 0.0;
                         break;
                     }
@@ -237,26 +284,14 @@ pub fn handle_input(
             piece.arr_right = 0.0;
             piece.das_left = 0.0;
             piece.arr_left = 0.0;
-            if piece_fits(&board, piece.kind, piece.rotation, piece.col + 1, piece.row, other) {
-                piece.col += 1;
-                piece.last_was_rotation = false;
-                if piece.lock_timer.is_some() {
-                    piece.lock_timer = Some(LOCK_DELAY);
-                }
-            }
+            try_lateral_move(&mut piece, &board, other, 1);
         } else if action.pressed(&PieceAction::MoveRight) {
             piece.das_right += dt;
             if piece.das_right >= DAS_DELAY {
                 piece.arr_right += dt;
                 while piece.arr_right >= ARR_RATE {
                     piece.arr_right -= ARR_RATE;
-                    if piece_fits(&board, piece.kind, piece.rotation, piece.col + 1, piece.row, other) {
-                        piece.col += 1;
-                        piece.last_was_rotation = false;
-                        if piece.lock_timer.is_some() {
-                            piece.lock_timer = Some(LOCK_DELAY);
-                        }
-                    } else {
+                    if !try_lateral_move(&mut piece, &board, other, 1) {
                         piece.arr_right = 0.0;
                         break;
                     }
@@ -281,34 +316,12 @@ pub fn handle_input(
 
         if action.just_pressed(&PieceAction::RotateCW) {
             let to = piece.rotation.cw();
-            if let Some((nc, nr, nrot)) =
-                collision::try_rotate(&board, piece.kind, piece.rotation, to, piece.col, piece.row, other)
-            {
-                piece.col = nc;
-                piece.row = nr;
-                piece.rotation = nrot;
-                piece.last_was_rotation = true;
-                if piece.lock_timer.is_some() {
-                    piece.lock_timer = Some(LOCK_DELAY);
-                }
-                ev_rotate.write(PieceRotated { player: piece.player });
-            }
+            apply_rotation(&mut piece, &board, other, to, &mut ev_rotate);
         }
 
         if action.just_pressed(&PieceAction::RotateCCW) {
             let to = piece.rotation.ccw();
-            if let Some((nc, nr, nrot)) =
-                collision::try_rotate(&board, piece.kind, piece.rotation, to, piece.col, piece.row, other)
-            {
-                piece.col = nc;
-                piece.row = nr;
-                piece.rotation = nrot;
-                piece.last_was_rotation = true;
-                if piece.lock_timer.is_some() {
-                    piece.lock_timer = Some(LOCK_DELAY);
-                }
-                ev_rotate.write(PieceRotated { player: piece.player });
-            }
+            apply_rotation(&mut piece, &board, other, to, &mut ev_rotate);
         }
     }
 }
@@ -320,11 +333,17 @@ pub fn apply_gravity(
     board: Res<Board>,
     mut score: ResMut<ScoreBoard>,
 ) {
-    let pieces: Vec<ActivePiece> = players.iter().cloned().collect();
+    let snapshots: [Option<(PlayerId, PiecePos)>; 2] = {
+        let mut it = players.iter();
+        [
+            it.next().map(|ap| (ap.player, ap.to_piece_pos())),
+            it.next().map(|ap| (ap.player, ap.to_piece_pos())),
+        ]
+    };
     let normal_interval = score.gravity_interval();
 
     for mut piece in &mut players {
-        let other = pieces.iter().find(|p| p.player != piece.player);
+        let other = snapshots.iter().flatten().find(|(pid, _)| *pid != piece.player).map(|(_, pos)| *pos);
         let interval = if piece.soft_drop_held {
             (normal_interval / 20.0).max(0.05)
         } else {
@@ -562,10 +581,16 @@ pub fn check_game_over(
     mut ev_gameover: EventWriter<GameOverEvent>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
-    let pieces: Vec<ActivePiece> = players.iter().cloned().collect();
-    for piece in &pieces {
-        let other = pieces.iter().find(|p| p.player != piece.player);
-        if !piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row, other) {
+    let snapshots: [Option<(PlayerId, PiecePos)>; 2] = {
+        let mut it = players.iter();
+        [
+            it.next().map(|ap| (ap.player, ap.to_piece_pos())),
+            it.next().map(|ap| (ap.player, ap.to_piece_pos())),
+        ]
+    };
+    for (player, pos) in snapshots.iter().flatten() {
+        let other = snapshots.iter().flatten().find(|(pid, _)| pid != player).map(|(_, p)| *p);
+        if !piece_fits(&board, pos.kind, pos.rotation, pos.col, pos.row, other) {
             ev_gameover.write(GameOverEvent);
             next_state.set(GameState::GameOver);
             return;

@@ -121,6 +121,8 @@ fn cleanup_on_quit(
             With<render::GhostBlockSprite>,
             With<render::BoardBackdrop>,
             With<render::NextPieceBlock>,
+            With<render::HoldPieceBlock>,
+            With<render::PopupText>,
         )>,
     >,
     hud: Query<Entity, With<ui::HudRoot>>,
@@ -133,7 +135,5 @@ fn cleanup_on_quit(
         commands.entity(e).despawn();
     }
     *board = board::Board::default();
-    let high_score = score.high_score;
-    *score = scoring::ScoreBoard::default();
-    score.high_score = high_score;
+    score.reset_preserving_high_score();
 }

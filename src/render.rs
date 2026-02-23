@@ -4,6 +4,7 @@ use crate::board::{Board, PieceColor, COLS, VISIBLE_ROWS};
 use crate::collision::{self, piece_fits};
 use crate::piece::{self, Rotation, TetrominoKind};
 use crate::piece::TSpinType;
+use crate::collision::PiecePos;
 use crate::player::{ActivePiece, LinesCleared, PieceBag, PieceLocked, PlayerId};
 use crate::scoring::{LevelUpEvent, ScoreBoard};
 
@@ -426,26 +427,33 @@ pub fn sync_ghost_pieces(
     board: Res<Board>,
     mut ghosts: Query<(&GhostBlockSprite, &mut Transform, &mut Sprite)>,
 ) {
-    let all_pieces: Vec<ActivePiece> = players.iter().cloned().collect();
+    // Collect minimal snapshots — no heap allocation, no full ActivePiece clone.
+    let snapshots: [Option<(PlayerId, PiecePos)>; 2] = {
+        let mut it = players.iter();
+        [
+            it.next().map(|ap| (ap.player, ap.to_piece_pos())),
+            it.next().map(|ap| (ap.player, ap.to_piece_pos())),
+        ]
+    };
 
     for (ghost, mut tf, mut sprite) in &mut ghosts {
-        let Some(piece) = all_pieces.iter().find(|p| p.player == ghost.player) else {
+        let Some((player, pos)) = snapshots.iter().flatten().find(|(pid, _)| *pid == ghost.player) else {
             tf.translation.y = -1000.0;
             continue;
         };
-        let other = all_pieces.iter().find(|p| p.player != ghost.player);
+        let other = snapshots.iter().flatten().find(|(pid, _)| *pid != ghost.player).map(|(_, p)| *p);
 
-        let mut ghost_row = piece.row;
-        while piece_fits(&board, piece.kind, piece.rotation, piece.col, ghost_row - 1, other) {
+        let mut ghost_row = pos.row;
+        while piece_fits(&board, pos.kind, pos.rotation, pos.col, ghost_row - 1, other) {
             ghost_row -= 1;
         }
 
-        let cells = collision::absolute_cells(piece.kind, piece.rotation, piece.col, ghost_row);
+        let cells = collision::absolute_cells(pos.kind, pos.rotation, pos.col, ghost_row);
         let (cx, cy) = cells[ghost.index];
         if cy < VISIBLE_ROWS as i32 && cy >= 0 && cx >= 0 && cx < COLS as i32 {
             tf.translation = cell_pos(cx as usize, cy as usize);
             tf.translation.z = 1.0;
-            sprite.color = ghost_color(piece.player, piece.kind);
+            sprite.color = ghost_color(*player, pos.kind);
         } else {
             tf.translation.y = -1000.0;
         }
@@ -470,7 +478,7 @@ pub fn sync_preview_pieces(
             tf.translation.y = -1000.0;
             continue;
         };
-        let preview = bag.peek_n(NEXT_PREVIEW_COUNT);
+        let preview = bag.peek_n::<NEXT_PREVIEW_COUNT>();
         if block.slot >= preview.len() {
             tf.translation.y = -1000.0;
             sprite.color = Color::NONE;

@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 
+use crate::board::Board;
 use crate::scoring::ScoreBoard;
-use crate::state::GameState;
+use crate::state::{GameState, QuitToMenu};
 
 #[derive(Component)]
 pub struct HudRoot;
@@ -264,16 +265,11 @@ pub fn game_over_input(
     mut board: ResMut<Board>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
-        let high_score = score.high_score;
-        *score = ScoreBoard::default();
-        score.high_score = high_score;
+        score.reset_preserving_high_score();
         *board = Board::default();
         next_state.set(GameState::Playing);
     }
 }
-
-use crate::board::Board;
-use crate::state::QuitToMenu;
 
 pub fn pause_input(
     keyboard: Res<ButtonInput<KeyCode>>,

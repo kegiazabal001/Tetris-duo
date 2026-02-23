@@ -54,6 +54,13 @@ pub fn save_high_score(mut score: ResMut<ScoreBoard>, mut ev: EventReader<GameOv
 }
 
 impl ScoreBoard {
+    /// Resets the scoreboard to defaults while preserving the all-time high score.
+    pub fn reset_preserving_high_score(&mut self) {
+        let high_score = self.high_score;
+        *self = ScoreBoard::default();
+        self.high_score = high_score;
+    }
+
     /// NES-style gravity interval (seconds per row drop).
     pub fn gravity_interval(&self) -> f32 {
         match self.level {

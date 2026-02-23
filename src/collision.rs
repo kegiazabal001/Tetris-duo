@@ -1,28 +1,31 @@
 /// Collision detection: checks piece positions against the board and the other player's active piece.
 use crate::board::Board;
 use crate::piece::{self, Rotation, TSpinType, TetrominoKind};
-use crate::player::ActivePiece;
+
+/// Minimal position snapshot used for "other player" collision checks.
+/// Contains only the fields needed to determine cell occupancy.
+#[derive(Clone, Copy)]
+pub struct PiecePos {
+    pub kind: TetrominoKind,
+    pub rotation: Rotation,
+    pub col: i32,
+    pub row: i32,
+}
 
 /// Returns the absolute cell positions for a piece at (col, row) with given kind and rotation.
 pub fn absolute_cells(kind: TetrominoKind, rot: Rotation, col: i32, row: i32) -> [(i32, i32); 4] {
-    let offsets = piece::cells(kind, rot);
-    [
-        (col + offsets[0].0, row + offsets[0].1),
-        (col + offsets[1].0, row + offsets[1].1),
-        (col + offsets[2].0, row + offsets[2].1),
-        (col + offsets[3].0, row + offsets[3].1),
-    ]
+    piece::cells(kind, rot).map(|(dx, dy)| (col + dx, row + dy))
 }
 
 /// Check if a piece fits at (col, row) with given rotation.
-/// `other` is the other player's active piece (if any) to also avoid overlapping.
+/// `other` is the other player's active piece position (if any) to also avoid overlapping.
 pub fn piece_fits(
     board: &Board,
     kind: TetrominoKind,
     rot: Rotation,
     col: i32,
     row: i32,
-    other: Option<&ActivePiece>,
+    other: Option<PiecePos>,
 ) -> bool {
     let cells = absolute_cells(kind, rot, col, row);
     let other_cells = other.map(|o| absolute_cells(o.kind, o.rotation, o.col, o.row));
@@ -78,7 +81,7 @@ pub fn try_rotate(
     to_rot: Rotation,
     col: i32,
     row: i32,
-    other: Option<&ActivePiece>,
+    other: Option<PiecePos>,
 ) -> Option<(i32, i32, Rotation)> {
     let kicks = piece::kick_offsets(kind, from_rot, to_rot);
     for &(dx, dy) in kicks {
@@ -95,6 +98,10 @@ pub fn try_rotate(
 mod tests {
     use super::*;
     use crate::board::Board;
+
+    fn make_pos(kind: TetrominoKind, col: i32, row: i32) -> PiecePos {
+        PiecePos { kind, rotation: Rotation::R0, col, row }
+    }
 
     #[test]
     fn piece_fits_empty_board() {
@@ -126,34 +133,10 @@ mod tests {
     #[test]
     fn piece_blocked_by_other_player() {
         let board = Board::default();
-        let other = ActivePiece {
-            player: crate::player::PlayerId::P2,
-            kind: TetrominoKind::O,
-            rotation: Rotation::R0,
-            col: 5,
-            row: 10,
-            gravity_timer: 0.0,
-            lock_timer: None,
-            soft_drop_held: false,
-            hold: None,
-            hold_used: false,
-            last_was_rotation: false,
-            das_left: 0.0,
-            das_right: 0.0,
-            arr_left: 0.0,
-            arr_right: 0.0,
-            locked: false,
-        };
+        let other = make_pos(TetrominoKind::O, 5, 10);
         // O at (5,10) occupies (5,10),(6,10),(5,11),(6,11)
         // T at R0 centered at (5,10) occupies (4,10),(5,10),(6,10),(5,11) - overlap!
-        assert!(!piece_fits(
-            &board,
-            TetrominoKind::T,
-            Rotation::R0,
-            5,
-            10,
-            Some(&other),
-        ));
+        assert!(!piece_fits(&board, TetrominoKind::T, Rotation::R0, 5, 10, Some(other)));
     }
 
     #[test]
@@ -177,35 +160,9 @@ mod tests {
         assert!(result.is_some());
     }
 
-    fn make_piece(player: crate::player::PlayerId, kind: TetrominoKind, col: i32, row: i32) -> ActivePiece {
-        ActivePiece {
-            player,
-            kind,
-            rotation: Rotation::R0,
-            col,
-            row,
-            gravity_timer: 0.0,
-            lock_timer: None,
-            soft_drop_held: false,
-            hold: None,
-            hold_used: false,
-            last_was_rotation: false,
-            das_left: 0.0,
-            das_right: 0.0,
-            arr_left: 0.0,
-            arr_right: 0.0,
-            locked: false,
-        }
-    }
-
     #[test]
     fn rotate_blocked_by_other_player() {
         let board = Board::default();
-        // Place P2's O-piece so it blocks every kick position for P1's T-piece rotation
-        // T at R0 col=5, row=5 tries to rotate CW to R1.
-        // Block the default kick positions by filling cells with another piece occupying them.
-        // Simpler: put board walls so all 5 kicks fail AND have an other-player piece overlapping too.
-        // Use a very constrained board scenario: fill all potential kick destinations manually.
         let mut board2 = Board::default();
         // Fill cols 3-7 rows 3-7 so T piece can't go anywhere
         for r in 3..=7i32 {
@@ -217,13 +174,12 @@ mod tests {
         let result = try_rotate(&board2, TetrominoKind::T, Rotation::R0, Rotation::R1, 5, 5, None);
         assert!(result.is_none(), "rotation should be blocked when all kicks are occupied");
 
-        // Now test with board clear but other player blocking
-        let other = make_piece(crate::player::PlayerId::P2, TetrominoKind::O, 6, 5);
         // Without the other piece the T at (5,5) R0->R1 succeeds (kick 0 = no offset, fits fine on empty board)
         let result_no_other = try_rotate(&board, TetrominoKind::T, Rotation::R0, Rotation::R1, 5, 5, None);
         assert!(result_no_other.is_some());
         // With board walls around AND other piece, confirm blocking still works
-        let result_with_other = try_rotate(&board2, TetrominoKind::T, Rotation::R0, Rotation::R1, 5, 5, Some(&other));
+        let other = make_pos(TetrominoKind::O, 6, 5);
+        let result_with_other = try_rotate(&board2, TetrominoKind::T, Rotation::R0, Rotation::R1, 5, 5, Some(other));
         assert!(result_with_other.is_none());
     }
 

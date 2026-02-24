@@ -176,7 +176,7 @@ pub fn setup_menu(mut commands: Commands) {
                 TextFont::from_font_size(48.0),
             ));
             parent.spawn((
-                Text::new("Cooperativo - completad lineas juntos!"),
+                Text::new("Cooperative — clear lines together!"),
                 TextColor(Color::srgb(0.6, 0.9, 0.6)),
                 TextFont::from_font_size(18.0),
             ));

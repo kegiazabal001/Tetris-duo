@@ -3,7 +3,12 @@ use bevy::prelude::*;
 use crate::piece::TSpinType;
 use crate::player::{GameOverEvent, LinesCleared};
 
-const HIGH_SCORE_FILE: &str = "high_score.txt";
+fn high_score_path() -> std::path::PathBuf {
+    let base = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let dir = std::path::Path::new(&base).join(".config").join("tetris-duo");
+    let _ = std::fs::create_dir_all(&dir);
+    dir.join("high_score.txt")
+}
 
 #[derive(Event)]
 pub struct LevelUpEvent {
@@ -37,7 +42,7 @@ impl Default for ScoreBoard {
 }
 
 pub fn load_high_score(mut score: ResMut<ScoreBoard>) {
-    if let Ok(contents) = std::fs::read_to_string(HIGH_SCORE_FILE) {
+    if let Ok(contents) = std::fs::read_to_string(high_score_path()) {
         if let Ok(value) = contents.trim().parse::<u32>() {
             score.high_score = value;
         }
@@ -48,7 +53,7 @@ pub fn save_high_score(mut score: ResMut<ScoreBoard>, mut ev: EventReader<GameOv
     for _ in ev.read() {
         if score.score > score.high_score {
             score.high_score = score.score;
-            let _ = std::fs::write(HIGH_SCORE_FILE, score.high_score.to_string());
+            let _ = std::fs::write(high_score_path(), score.high_score.to_string());
         }
     }
 }

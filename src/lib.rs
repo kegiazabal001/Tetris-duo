@@ -90,10 +90,10 @@ impl Plugin for TetrisDuoPlugin {
                     .run_if(in_state(GameState::Playing)),
             )
             // Pause
-            .add_systems(OnEnter(GameState::Paused), ui::setup_pause)
+            .add_systems(OnEnter(GameState::Paused), (ui::setup_pause, audio::pause_bg_music))
             .add_systems(
                 OnExit(GameState::Paused),
-                (ui::despawn_pause, cleanup_on_quit),
+                (ui::despawn_pause, cleanup_on_quit, audio::resume_bg_music),
             )
             .add_systems(Update, ui::pause_input)
             // Game Over

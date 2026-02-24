@@ -49,6 +49,18 @@ pub fn stop_bg_music(mut commands: Commands, query: Query<Entity, With<BgMusic>>
     }
 }
 
+pub fn pause_bg_music(query: Query<&AudioSink, With<BgMusic>>) {
+    for sink in query.iter() {
+        sink.pause();
+    }
+}
+
+pub fn resume_bg_music(query: Query<&AudioSink, With<BgMusic>>) {
+    for sink in query.iter() {
+        sink.play();
+    }
+}
+
 pub fn play_piece_sounds(
     mut commands: Commands,
     audio: Res<AudioAssets>,

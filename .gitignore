@@ -9,3 +9,7 @@ high_score.txt
 # Source audio files (only OGGs are used by the game)
 assets/audio/*.wav
 
+
+# Internal dev docs (not for public repo)
+CLAUDE.md
+PLAN.md

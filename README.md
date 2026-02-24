@@ -32,6 +32,35 @@ Cooperative 2-player Tetris on a single shared board. Both players work together
 **Menu:** Enter to start
 **Pause:** Escape — then Q to quit to menu
 
+## Download & Play
+
+Pre-built binaries are available on the [Releases page](../../releases/latest).
+
+| Platform | File |
+|----------|------|
+| Linux x86_64 | `tetris-duo-linux-x86_64.tar.gz` |
+| Windows x86_64 | `tetris-duo-windows-x86_64.zip` |
+
+### Linux
+
+```bash
+tar -xzf tetris-duo-linux-x86_64.tar.gz
+cd tetris-duo
+./tetris-duo
+```
+
+> **Note:** The game requires ALSA and udev libraries. On Debian/Ubuntu:
+> ```bash
+> sudo apt install libudev1 libasound2
+> ```
+> These are usually already installed on desktop systems.
+
+### Windows
+
+Extract `tetris-duo-windows-x86_64.zip` and run `tetris-duo.exe`.
+
+---
+
 ## Requirements
 
 - Rust (stable, 2021 edition)

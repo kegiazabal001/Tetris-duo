@@ -1,1 +1,11 @@
 /target
+
+# Runtime data
+high_score.txt
+
+# Claude Code local config
+.claude/
+
+# Source audio files (only OGGs are used by the game)
+assets/audio/*.wav
+

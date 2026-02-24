@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev libasound2-dev
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: linux-cargo-${{ hashFiles('Cargo.lock') }}
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Package
+        run: |
+          mkdir -p dist/tetris-duo
+          cp target/release/tetris-duo dist/tetris-duo/
+          cp -r assets dist/tetris-duo/
+          cd dist
+          tar -czf tetris-duo-linux-x86_64.tar.gz tetris-duo/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: dist/tetris-duo-linux-x86_64.tar.gz
+
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: windows-cargo-${{ hashFiles('Cargo.lock') }}
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/tetris-duo
+          Copy-Item target/release/tetris-duo.exe dist/tetris-duo/
+          Copy-Item -Recurse assets dist/tetris-duo/
+          Compress-Archive -Path dist/tetris-duo -DestinationPath dist/tetris-duo-windows-x86_64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: dist/tetris-duo-windows-x86_64.zip
+
+  release:
+    name: Publish Release
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Tetris Duo ${{ github.ref_name }}"
+          body: |
+            ## Tetris Duo ${{ github.ref_name }}
+
+            ### Download & Play
+
+            | Platform | File |
+            |----------|------|
+            | Linux x86_64 | `tetris-duo-linux-x86_64.tar.gz` |
+            | Windows x86_64 | `tetris-duo-windows-x86_64.zip` |
+
+            ### Linux
+            ```bash
+            tar -xzf tetris-duo-linux-x86_64.tar.gz
+            cd tetris-duo
+            ./tetris-duo
+            ```
+
+            ### Windows
+            Extract the zip and run `tetris-duo.exe`.
+          files: |
+            dist/linux-build/tetris-duo-linux-x86_64.tar.gz
+            dist/windows-build/tetris-duo-windows-x86_64.zip
+          draft: false
+          prerelease: false

@@ -4,7 +4,7 @@ use crate::config::AppConfig;
 use crate::scoring::ScoreBoard;
 use crate::state::{GameState, SelectedMode};
 
-pub const SPRINT_GOAL: u32 = 40;
+pub const SPRINT_GOAL: u32 = 20;
 pub const ULTRA_DURATION: f32 = 120.0;
 
 #[derive(Resource, Default)]
@@ -22,7 +22,7 @@ pub fn tick_mode_timer(mut timer: ResMut<ModeTimer>, time: Res<Time>) {
     timer.elapsed += time.delta_secs();
 }
 
-/// Sprint victory condition: 40 lines cleared → SprintComplete.
+/// Sprint victory condition: 20 lines cleared → SprintComplete.
 pub fn check_sprint_complete(
     mode: Res<SelectedMode>,
     score: Res<ScoreBoard>,
@@ -84,8 +84,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sprint_goal_constant_is_40() {
-        assert_eq!(SPRINT_GOAL, 40);
+    fn sprint_goal_constant_is_20() {
+        assert_eq!(SPRINT_GOAL, 20);
     }
 
     #[test]

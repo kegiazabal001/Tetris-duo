@@ -1,6 +1,6 @@
 # Tetris Duo
 
-Cooperative 2-player Tetris on a single shared board. Both players work together to survive as long as possible.
+Cooperative 2-player Tetris on a single shared board. Both players work together to clear lines in three game modes.
 
 ![Rust](https://img.shields.io/badge/Rust-2021-orange?logo=rust)
 ![Bevy](https://img.shields.io/badge/Bevy-0.16-blue)
@@ -9,13 +9,15 @@ Cooperative 2-player Tetris on a single shared board. Both players work together
 ## Features
 
 - Shared 18×22 board — no fixed lanes, both pieces interact
+- **Three game modes:** Endless, Sprint (20 lines), Ultra (2 minutes)
 - Full Tetris Guideline scoring: T-Spins, Back-to-Back, combos
 - SRS rotation system with wall kicks
 - 3-piece preview + hold for each player
 - DAS/ARR tuned to Tetris Guideline defaults
-- Persistent high score (`~/.config/tetris-duo/high_score.txt`)
+- Ghost piece, line clear flash, progressive color effects in Ultra
+- Persistent high scores per mode (`~/.config/tetris-duo/settings.json`)
+- Settings screen with per-player key rebinding
 - 8-bit background music + sound effects
-- Menu → Playing ↔ Paused → Game Over state machine
 
 ## Controls
 
@@ -29,7 +31,9 @@ Cooperative 2-player Tetris on a single shared board. Both players work together
 | Rotate CCW | Q | , (Comma) |
 | Hold | LShift | RShift |
 
-**Menu:** Enter to start
+All keys are rebindable from the **Settings** screen.
+
+**Menu:** Enter to start, S/↓ to open Settings
 **Pause:** Escape — then Q to quit to menu
 
 ## Download & Play
@@ -82,7 +86,7 @@ cargo run --release
 cargo test
 ```
 
-38 unit tests covering board logic, piece rotation, collision detection, player mechanics, and scoring.
+40 unit tests covering board logic, piece rotation, collision detection, player mechanics, and scoring.
 
 ## Architecture
 
@@ -93,15 +97,18 @@ Built with [Bevy 0.16](https://bevyengine.org/) ECS and [leafwing-input-manager 
 | `main.rs` | App entry point, window config |
 | `lib.rs` | Plugin — registers all systems |
 | `state.rs` | `GameState` FSM |
+| `constants.rs` | Centralised gameplay constants (DAS, ARR, cell size, etc.) |
 | `board.rs` | 18×22 grid, row clearing |
 | `piece.rs` | Tetromino kinds, SRS rotation tables |
 | `collision.rs` | `piece_fits`, `try_rotate`, T-Spin detection |
 | `player.rs` | `ActivePiece`, gravity, lock delay, DAS/ARR, hold |
 | `input.rs` | Input maps for both players |
 | `scoring.rs` | Score, level, combo, high score persistence |
+| `modes.rs` | Sprint and Ultra mode logic |
+| `config.rs` | `AppConfig` — settings and high scores (JSON) |
 | `render.rs` | Sprite sync for board, pieces, ghost, preview |
 | `audio.rs` | Sound effects and background music |
-| `ui.rs` | HUD, menus, overlays |
+| `ui.rs` | HUD, menus, overlays, settings screen |
 
 ## License
 

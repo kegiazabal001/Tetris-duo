@@ -603,3 +603,261 @@ pub fn fmt_time_sprint(secs: f32) -> String {
     let m = total_secs / 60;
     format!("{m:02}:{s:02}.{tenths}")
 }
+
+// ── SETTINGS ──────────────────────────────────────────────────────────────────
+
+use crate::config::keycode_to_str;
+use crate::input::PieceAction;
+use crate::player::PlayerId;
+use crate::state::RebindTarget;
+
+#[derive(Component)]
+pub struct SettingsRoot;
+
+/// Which (row, col) is currently highlighted. row 0-6, col 0=P1 1=P2.
+#[derive(Resource, Default)]
+pub struct SettingsCursor {
+    pub row: usize,
+    pub col: usize,
+}
+
+/// Marker for binding label text entities so we can update them.
+#[derive(Component)]
+pub struct BindingLabel {
+    pub player: PlayerId,
+    pub action: PieceAction,
+}
+
+const ACTION_NAMES: [&str; 7] =
+    ["Move Left", "Move Right", "Soft Drop", "Hard Drop", "Rotate CW", "Rotate CCW", "Hold"];
+
+fn action_for_index(i: usize) -> PieceAction {
+    match i {
+        0 => PieceAction::MoveLeft,
+        1 => PieceAction::MoveRight,
+        2 => PieceAction::SoftDrop,
+        3 => PieceAction::HardDrop,
+        4 => PieceAction::RotateCW,
+        5 => PieceAction::RotateCCW,
+        _ => PieceAction::Hold,
+    }
+}
+
+fn binding_str(config: &AppConfig, player: PlayerId, action: PieceAction) -> String {
+    let b = match player {
+        PlayerId::P1 => &config.p1,
+        PlayerId::P2 => &config.p2,
+    };
+    let key = match action {
+        PieceAction::MoveLeft  => &b.move_left,
+        PieceAction::MoveRight => &b.move_right,
+        PieceAction::SoftDrop  => &b.soft_drop,
+        PieceAction::HardDrop  => &b.hard_drop,
+        PieceAction::RotateCW  => &b.rotate_cw,
+        PieceAction::RotateCCW => &b.rotate_ccw,
+        PieceAction::Hold      => &b.hold,
+    };
+    format!("[{key}]")
+}
+
+pub fn setup_settings(mut commands: Commands, config: Res<AppConfig>) {
+    commands.insert_resource(SettingsCursor::default());
+
+    commands
+        .spawn((
+            SettingsRoot,
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(12.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.92)),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("SETTINGS"),
+                TextColor(Color::WHITE),
+                TextFont::from_font_size(40.0),
+            ));
+
+            // Header row
+            parent
+                .spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(40.0),
+                    ..default()
+                })
+                .with_children(|row| {
+                    row.spawn((
+                        Text::new("Action"),
+                        TextColor(Color::srgb(0.7, 0.7, 0.7)),
+                        TextFont::from_font_size(18.0),
+                        Node { width: Val::Px(140.0), ..default() },
+                    ));
+                    row.spawn((
+                        Text::new("Player 1"),
+                        TextColor(Color::srgb(0.4, 0.65, 1.0)),
+                        TextFont::from_font_size(18.0),
+                        Node { width: Val::Px(160.0), ..default() },
+                    ));
+                    row.spawn((
+                        Text::new("Player 2"),
+                        TextColor(Color::srgb(1.0, 0.75, 0.55)),
+                        TextFont::from_font_size(18.0),
+                        Node { width: Val::Px(160.0), ..default() },
+                    ));
+                });
+
+            // Action rows
+            for (i, &name) in ACTION_NAMES.iter().enumerate() {
+                let action = action_for_index(i);
+                let p1_str = binding_str(&config, PlayerId::P1, action);
+                let p2_str = binding_str(&config, PlayerId::P2, action);
+
+                parent
+                    .spawn(Node {
+                        flex_direction: FlexDirection::Row,
+                        column_gap: Val::Px(40.0),
+                        ..default()
+                    })
+                    .with_children(|row| {
+                        // Action label
+                        row.spawn((
+                            Text::new(name),
+                            TextColor(Color::srgb(0.85, 0.85, 0.85)),
+                            TextFont::from_font_size(18.0),
+                            Node { width: Val::Px(140.0), ..default() },
+                        ));
+                        // P1 binding
+                        row.spawn((
+                            BindingLabel { player: PlayerId::P1, action },
+                            Text::new(p1_str),
+                            TextColor(Color::srgb(0.8, 0.8, 0.8)),
+                            TextFont::from_font_size(18.0),
+                            Node { width: Val::Px(160.0), ..default() },
+                        ));
+                        // P2 binding
+                        row.spawn((
+                            BindingLabel { player: PlayerId::P2, action },
+                            Text::new(p2_str),
+                            TextColor(Color::srgb(0.8, 0.8, 0.8)),
+                            TextFont::from_font_size(18.0),
+                            Node { width: Val::Px(160.0), ..default() },
+                        ));
+                    });
+            }
+
+            parent.spawn((
+                Text::new("↑↓ row · ←→ P1/P2 · Enter = remap · ESC = save & return"),
+                TextColor(Color::srgb(0.5, 0.5, 0.5)),
+                TextFont::from_font_size(16.0),
+            ));
+        });
+}
+
+pub fn despawn_settings(mut commands: Commands, query: Query<Entity, With<SettingsRoot>>) {
+    for entity in &query {
+        commands.entity(entity).despawn();
+    }
+    commands.remove_resource::<SettingsCursor>();
+}
+
+/// Updates the highlight colors of binding labels based on cursor + rebind state.
+pub fn update_settings_highlight(
+    cursor: Option<Res<SettingsCursor>>,
+    rebind: Res<RebindTarget>,
+    mut labels: Query<(&BindingLabel, &mut TextColor)>,
+) {
+    let Some(cursor) = cursor else { return };
+    let action_at_row = action_for_index(cursor.row);
+
+    for (label, mut color) in &mut labels {
+        let is_selected_row = label.action == action_at_row;
+        let is_selected_col =
+            (cursor.col == 0 && label.player == PlayerId::P1) ||
+            (cursor.col == 1 && label.player == PlayerId::P2);
+        let is_pending = rebind.pending.map_or(false, |(p, a)| p == label.player && a == label.action);
+
+        *color = if is_pending {
+            TextColor(Color::srgb(1.0, 0.5, 0.0))
+        } else if is_selected_row && is_selected_col {
+            TextColor(Color::srgb(1.0, 0.9, 0.1))
+        } else {
+            TextColor(Color::srgb(0.8, 0.8, 0.8))
+        };
+    }
+}
+
+pub fn settings_input(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    cursor: Option<ResMut<SettingsCursor>>,
+    mut rebind: ResMut<RebindTarget>,
+    mut config: ResMut<AppConfig>,
+    mut next_state: ResMut<NextState<GameState>>,
+    mut labels: Query<(&BindingLabel, &mut Text)>,
+) {
+    let Some(mut cursor) = cursor else { return };
+
+    // If waiting for a key capture
+    if let Some((player, action)) = rebind.pending {
+        let captured = keyboard.get_just_pressed().find(|&&kc| kc != KeyCode::Escape).copied();
+        if let Some(kc) = captured {
+            let key_str = keycode_to_str(kc);
+            {
+                let b = match player {
+                    PlayerId::P1 => &mut config.p1,
+                    PlayerId::P2 => &mut config.p2,
+                };
+                match action {
+                    PieceAction::MoveLeft  => b.move_left  = key_str.clone(),
+                    PieceAction::MoveRight => b.move_right = key_str.clone(),
+                    PieceAction::SoftDrop  => b.soft_drop  = key_str.clone(),
+                    PieceAction::HardDrop  => b.hard_drop  = key_str.clone(),
+                    PieceAction::RotateCW  => b.rotate_cw  = key_str.clone(),
+                    PieceAction::RotateCCW => b.rotate_ccw = key_str.clone(),
+                    PieceAction::Hold      => b.hold        = key_str.clone(),
+                }
+            }
+            for (label, mut text) in &mut labels {
+                if label.player == player && label.action == action {
+                    **text = format!("[{key_str}]");
+                }
+            }
+            rebind.pending = None;
+        } else if keyboard.just_pressed(KeyCode::Escape) {
+            rebind.pending = None;
+        }
+        return;
+    }
+
+    // Navigation
+    if keyboard.just_pressed(KeyCode::ArrowUp) && cursor.row > 0 {
+        cursor.row -= 1;
+    }
+    if keyboard.just_pressed(KeyCode::ArrowDown) && cursor.row < 6 {
+        cursor.row += 1;
+    }
+    if keyboard.just_pressed(KeyCode::ArrowLeft) {
+        cursor.col = 0;
+    }
+    if keyboard.just_pressed(KeyCode::ArrowRight) {
+        cursor.col = 1;
+    }
+
+    // Enter: start capture
+    if keyboard.just_pressed(KeyCode::Enter) {
+        let player = if cursor.col == 0 { PlayerId::P1 } else { PlayerId::P2 };
+        let action = action_for_index(cursor.row);
+        rebind.pending = Some((player, action));
+    }
+
+    // ESC: save and return
+    if keyboard.just_pressed(KeyCode::Escape) {
+        config.save();
+        next_state.set(GameState::ModeSelect);
+    }
+}

@@ -17,7 +17,7 @@ use leafwing_input_manager::prelude::*;
 use crate::config::AppConfig;
 use crate::input::PieceAction;
 use crate::player::InputGrace;
-use crate::state::{GameState, QuitToMenu, SelectedMode};
+use crate::state::{GameState, QuitToMenu, RebindTarget, SelectedMode};
 
 pub struct TetrisDuoPlugin;
 
@@ -33,6 +33,7 @@ impl Plugin for TetrisDuoPlugin {
             .init_resource::<render::PieceLockFlash>()
             .init_resource::<QuitToMenu>()
             .init_resource::<SelectedMode>()
+            .init_resource::<RebindTarget>()
             .init_resource::<modes::ModeTimer>()
             .add_event::<player::PieceLocked>()
             .add_event::<player::LinesCleared>()
@@ -52,6 +53,14 @@ impl Plugin for TetrisDuoPlugin {
             .add_systems(
                 Update,
                 ui::mode_select_input.run_if(in_state(GameState::ModeSelect)),
+            )
+            // Settings
+            .add_systems(OnEnter(GameState::Settings), ui::setup_settings)
+            .add_systems(OnExit(GameState::Settings), ui::despawn_settings)
+            .add_systems(
+                Update,
+                (ui::settings_input, ui::update_settings_highlight)
+                    .run_if(in_state(GameState::Settings)),
             )
             // Playing: enter/exit
             .add_systems(

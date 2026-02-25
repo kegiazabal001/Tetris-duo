@@ -431,7 +431,7 @@ pub fn pause_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     state: Res<State<GameState>>,
     mut next_state: ResMut<NextState<GameState>>,
-    mut quit_to_menu: ResMut<QuitToMenu>,
+    mut quit_to_menu: EventWriter<QuitToMenu>,
 ) {
     if keyboard.just_pressed(KeyCode::Escape) {
         match state.get() {
@@ -442,7 +442,7 @@ pub fn pause_input(
     }
     if keyboard.just_pressed(KeyCode::KeyQ) {
         if *state.get() == GameState::Paused {
-            quit_to_menu.0 = true;
+            quit_to_menu.write(QuitToMenu);
             next_state.set(GameState::Menu);
         }
     }

@@ -31,7 +31,7 @@ impl Plugin for TetrisDuoPlugin {
             .init_resource::<InputGrace>()
             .init_resource::<render::LineClearFlash>()
             .init_resource::<render::PieceLockFlash>()
-            .init_resource::<QuitToMenu>()
+            .add_event::<QuitToMenu>()
             .init_resource::<SelectedMode>()
             .init_resource::<RebindTarget>()
             .init_resource::<modes::ModeTimer>()
@@ -145,7 +145,7 @@ impl Plugin for TetrisDuoPlugin {
 /// Cleans up all in-game entities when the player quits to menu from the pause screen.
 /// Runs on `OnExit(Paused)`; does nothing when simply resuming.
 fn cleanup_on_quit(
-    mut quit: ResMut<QuitToMenu>,
+    mut quit: EventReader<QuitToMenu>,
     mut commands: Commands,
     mut board: ResMut<board::Board>,
     mut score: ResMut<scoring::ScoreBoard>,
@@ -166,10 +166,9 @@ fn cleanup_on_quit(
     >,
     hud: Query<Entity, With<ui::HudRoot>>,
 ) {
-    if !quit.0 {
+    if quit.read().next().is_none() {
         return;
     }
-    quit.0 = false;
     for e in players.iter().chain(board_sprites.iter()).chain(hud.iter()) {
         commands.entity(e).despawn();
     }

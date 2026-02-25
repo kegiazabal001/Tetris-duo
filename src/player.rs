@@ -3,7 +3,8 @@ use std::collections::VecDeque;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 
 use crate::board::{Board, PieceColor, COLS, VISIBLE_ROWS};
 use crate::collision::{self, piece_fits, PiecePos};
@@ -64,11 +65,16 @@ pub struct ActivePiece {
 pub struct PieceBag {
     pub player: PlayerId,
     pub queue: VecDeque<TetrominoKind>,
+    rng: StdRng,
 }
 
 impl PieceBag {
     pub fn new(player: PlayerId) -> Self {
-        let mut bag = Self { player, queue: VecDeque::new() };
+        Self::new_with_rng(player, StdRng::from_entropy())
+    }
+
+    pub fn new_with_rng(player: PlayerId, rng: StdRng) -> Self {
+        let mut bag = Self { player, queue: VecDeque::new(), rng };
         bag.refill();
         bag.refill(); // start with 14 pieces
         bag
@@ -76,7 +82,7 @@ impl PieceBag {
 
     fn refill(&mut self) {
         let mut pieces = TetrominoKind::ALL.to_vec();
-        pieces.shuffle(&mut thread_rng());
+        pieces.shuffle(&mut self.rng);
         self.queue.extend(pieces);
     }
 

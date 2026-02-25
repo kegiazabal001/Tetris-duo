@@ -128,6 +128,12 @@ pub(crate) const LOCK_DELAY: f32 = 0.5;
 const DAS_DELAY: f32 = 0.167;
 const ARR_RATE: f32 = 0.033;
 
+/// Collects position snapshots for both players from any query iterator
+/// that yields `(PlayerId, PiecePos)` pairs.
+pub fn collect_snapshots(mut iter: impl Iterator<Item = (PlayerId, PiecePos)>) -> [Option<(PlayerId, PiecePos)>; 2] {
+    [iter.next(), iter.next()]
+}
+
 impl ActivePiece {
     /// Resets the lock-delay timer back to LOCK_DELAY when the piece is on the ground.
     /// Used after any successful move or rotation to extend the grace period.
@@ -244,13 +250,7 @@ pub fn handle_input(
     }
     let dt = time.delta_secs();
     // Collect minimal position snapshots — no heap allocation, avoids cloning full ActivePiece.
-    let snapshots: [Option<(PlayerId, PiecePos)>; 2] = {
-        let mut it = players.iter();
-        [
-            it.next().map(|(_, ap, _)| (ap.player, ap.to_piece_pos())),
-            it.next().map(|(_, ap, _)| (ap.player, ap.to_piece_pos())),
-        ]
-    };
+    let snapshots = collect_snapshots(players.iter().map(|(_, ap, _)| (ap.player, ap.to_piece_pos())));
 
     for (action, mut piece, mut bag) in &mut players {
         let other = snapshots.iter().flatten().find(|(pid, _)| *pid != piece.player).map(|(_, pos)| *pos);
@@ -347,13 +347,7 @@ pub fn apply_gravity(
     board: Res<Board>,
     mut score: ResMut<ScoreBoard>,
 ) {
-    let snapshots: [Option<(PlayerId, PiecePos)>; 2] = {
-        let mut it = players.iter();
-        [
-            it.next().map(|ap| (ap.player, ap.to_piece_pos())),
-            it.next().map(|ap| (ap.player, ap.to_piece_pos())),
-        ]
-    };
+    let snapshots = collect_snapshots(players.iter().map(|ap| (ap.player, ap.to_piece_pos())));
     let normal_interval = score.gravity_interval();
 
     for mut piece in &mut players {
@@ -595,13 +589,7 @@ pub fn check_game_over(
     mut ev_gameover: EventWriter<GameOverEvent>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
-    let snapshots: [Option<(PlayerId, PiecePos)>; 2] = {
-        let mut it = players.iter();
-        [
-            it.next().map(|ap| (ap.player, ap.to_piece_pos())),
-            it.next().map(|ap| (ap.player, ap.to_piece_pos())),
-        ]
-    };
+    let snapshots = collect_snapshots(players.iter().map(|ap| (ap.player, ap.to_piece_pos())));
     for (player, pos) in snapshots.iter().flatten() {
         let other = snapshots.iter().flatten().find(|(pid, _)| pid != player).map(|(_, p)| *p);
         if !piece_fits(&board, pos.kind, pos.rotation, pos.col, pos.row, other) {

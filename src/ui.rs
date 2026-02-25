@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::board::Board;
 use crate::config::AppConfig;
-use crate::modes::{ModeTimer, SprintResult, SPRINT_GOAL, ULTRA_DURATION};
+use crate::modes::{ModeTimer, SPRINT_GOAL, ULTRA_DURATION};
 use crate::scoring::ScoreBoard;
 use crate::state::{GameState, QuitToMenu, SelectedMode};
 
@@ -543,16 +543,24 @@ pub struct SprintCompleteRoot;
 
 pub fn setup_sprint_complete(
     mut commands: Commands,
-    result: Res<SprintResult>,
+    timer: Res<ModeTimer>,
+    mut config: ResMut<AppConfig>,
 ) {
-    let elapsed = result.elapsed;
+    let elapsed = timer.elapsed;
     let time_str = fmt_time_sprint(elapsed);
 
-    let (record_text, record_color) = if result.is_new_best {
+    let prev_best = config.high_scores.sprint_best;
+    let is_new_best = prev_best.map_or(true, |best| elapsed < best);
+
+    if is_new_best {
+        config.high_scores.sprint_best = Some(elapsed);
+        config.save();
+    }
+
+    let (record_text, record_color) = if is_new_best {
         ("¡NUEVO RÉCORD!".to_string(), Color::srgb(0.2, 1.0, 0.3))
     } else {
-        // prev_best is guaranteed Some when is_new_best is false
-        let best_str = fmt_time_sprint(result.prev_best.unwrap_or(elapsed));
+        let best_str = fmt_time_sprint(prev_best.unwrap_or(elapsed));
         (format!("Mejor: {best_str}"), Color::srgb(0.5, 0.5, 0.5))
     };
 

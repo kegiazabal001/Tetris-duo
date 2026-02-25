@@ -133,10 +133,7 @@ impl Plugin for TetrisDuoPlugin {
                 ui::game_over_input.run_if(in_state(GameState::GameOver)),
             )
             // Sprint Complete
-            .add_systems(
-                OnEnter(GameState::SprintComplete),
-                (modes::save_sprint_score, ui::setup_sprint_complete),
-            )
+            .add_systems(OnEnter(GameState::SprintComplete), ui::setup_sprint_complete)
             .add_systems(OnExit(GameState::SprintComplete), ui::despawn_sprint_complete)
             .add_systems(
                 Update,

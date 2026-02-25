@@ -204,8 +204,14 @@ pub fn update_hud(
         SelectedMode::Ultra => {
             let remaining = (ULTRA_DURATION - timer.elapsed).max(0.0);
             let total_secs = remaining as u32;
-            let color =
-                if remaining < 30.0 { Color::srgb(1.0, 0.2, 0.2) } else { Color::WHITE };
+            // Progressive color: white → red as remaining goes from 30s to 0s.
+            let color = if remaining >= 30.0 {
+                Color::WHITE
+            } else {
+                // t = 1.0 at 30s remaining, 0.0 at 0s → lerp green/blue channel down
+                let t = remaining / 30.0; // 0..=1
+                Color::srgb(1.0, t * 1.0, t * 1.0)
+            };
             for (mut text, mut text_color) in &mut mode_timer_q {
                 **text = format!("{:02}:{:02}", total_secs / 60, total_secs % 60);
                 *text_color = TextColor(color);
@@ -535,8 +541,26 @@ pub fn game_over_input(
 #[derive(Component)]
 pub struct SprintCompleteRoot;
 
-pub fn setup_sprint_complete(mut commands: Commands, timer: Res<ModeTimer>) {
-    let time_str = fmt_time_sprint(timer.elapsed);
+pub fn setup_sprint_complete(
+    mut commands: Commands,
+    timer: Res<ModeTimer>,
+    config: Res<AppConfig>,
+) {
+    let elapsed = timer.elapsed;
+    let time_str = fmt_time_sprint(elapsed);
+
+    let is_new_best = match config.high_scores.sprint_best {
+        None => true,
+        Some(best) => elapsed < best,
+    };
+
+    let (record_text, record_color) = if is_new_best {
+        ("¡NUEVO RÉCORD!".to_string(), Color::srgb(0.2, 1.0, 0.3))
+    } else {
+        let best_str = fmt_time_sprint(config.high_scores.sprint_best.unwrap_or(elapsed));
+        (format!("Mejor: {best_str}"), Color::srgb(0.5, 0.5, 0.5))
+    };
+
     commands
         .spawn((
             SprintCompleteRoot,
@@ -561,6 +585,11 @@ pub fn setup_sprint_complete(mut commands: Commands, timer: Res<ModeTimer>) {
                 Text::new(format!("Time: {time_str}")),
                 TextColor(Color::WHITE),
                 TextFont::from_font_size(32.0),
+            ));
+            parent.spawn((
+                Text::new(record_text),
+                TextColor(record_color),
+                TextFont::from_font_size(24.0),
             ));
             parent.spawn((
                 Text::new("Press SPACE to return to mode select"),

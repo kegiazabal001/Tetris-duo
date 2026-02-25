@@ -21,14 +21,8 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Install sccache
-        uses: mozilla-actions/sccache-action@v0.0.4
-
       - name: Build release
         run: cargo build --release
-        env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
 
       - name: Package
         run: |
@@ -56,14 +50,8 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Install sccache
-        uses: mozilla-actions/sccache-action@v0.0.4
-
       - name: Build release
         run: cargo build --release
-        env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
 
       - name: Package
         shell: pwsh

@@ -9,7 +9,18 @@ pub struct QuitToMenu(pub bool);
 pub enum GameState {
     #[default]
     Menu,
+    ModeSelect,
+    Settings,
     Playing,
     Paused,
     GameOver,
+    SprintComplete,
+}
+
+#[derive(Resource, Default, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedMode {
+    #[default]
+    Endless,
+    Sprint,
+    Ultra,
 }

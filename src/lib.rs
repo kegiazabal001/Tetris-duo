@@ -3,6 +3,7 @@ pub mod board;
 pub mod collision;
 pub mod config;
 pub mod input;
+pub mod modes;
 pub mod piece;
 pub mod player;
 pub mod render;
@@ -16,7 +17,7 @@ use leafwing_input_manager::prelude::*;
 use crate::config::AppConfig;
 use crate::input::PieceAction;
 use crate::player::InputGrace;
-use crate::state::{GameState, QuitToMenu};
+use crate::state::{GameState, QuitToMenu, SelectedMode};
 
 pub struct TetrisDuoPlugin;
 
@@ -31,6 +32,8 @@ impl Plugin for TetrisDuoPlugin {
             .init_resource::<render::LineClearFlash>()
             .init_resource::<render::PieceLockFlash>()
             .init_resource::<QuitToMenu>()
+            .init_resource::<SelectedMode>()
+            .init_resource::<modes::ModeTimer>()
             .add_event::<player::PieceLocked>()
             .add_event::<player::LinesCleared>()
             .add_event::<player::PieceRotated>()
@@ -43,10 +46,18 @@ impl Plugin for TetrisDuoPlugin {
             .add_systems(OnEnter(GameState::Menu), ui::setup_menu)
             .add_systems(OnExit(GameState::Menu), ui::despawn_menu)
             .add_systems(Update, ui::menu_input.run_if(in_state(GameState::Menu)))
+            // ModeSelect
+            .add_systems(OnEnter(GameState::ModeSelect), ui::setup_mode_select)
+            .add_systems(OnExit(GameState::ModeSelect), ui::despawn_mode_select)
+            .add_systems(
+                Update,
+                ui::mode_select_input.run_if(in_state(GameState::ModeSelect)),
+            )
             // Playing: enter/exit
             .add_systems(
                 OnEnter(GameState::Playing),
                 (
+                    modes::start_mode_timer,
                     player::spawn_players,
                     render::setup_board_visuals,
                     ui::setup_hud,
@@ -79,6 +90,9 @@ impl Plugin for TetrisDuoPlugin {
                         audio::play_level_up_sound,
                         audio::play_game_over_sound,
                         player::check_game_over,
+                        modes::tick_mode_timer,
+                        modes::check_sprint_complete,
+                        modes::check_ultra_timeout,
                         render::sync_board_cells,
                         render::sync_active_pieces,
                         render::sync_ghost_pieces,
@@ -105,6 +119,13 @@ impl Plugin for TetrisDuoPlugin {
             .add_systems(
                 Update,
                 ui::game_over_input.run_if(in_state(GameState::GameOver)),
+            )
+            // Sprint Complete
+            .add_systems(OnEnter(GameState::SprintComplete), ui::setup_sprint_complete)
+            .add_systems(OnExit(GameState::SprintComplete), ui::despawn_sprint_complete)
+            .add_systems(
+                Update,
+                ui::sprint_complete_input.run_if(in_state(GameState::SprintComplete)),
             );
     }
 }
@@ -116,6 +137,8 @@ fn cleanup_on_quit(
     mut commands: Commands,
     mut board: ResMut<board::Board>,
     mut score: ResMut<scoring::ScoreBoard>,
+    mut mode_timer: ResMut<modes::ModeTimer>,
+    mut selected_mode: ResMut<SelectedMode>,
     players: Query<Entity, With<player::ActivePiece>>,
     board_sprites: Query<
         Entity,
@@ -140,4 +163,6 @@ fn cleanup_on_quit(
     }
     *board = board::Board::default();
     score.reset_preserving_high_score();
+    mode_timer.elapsed = 0.0;
+    *selected_mode = SelectedMode::default();
 }

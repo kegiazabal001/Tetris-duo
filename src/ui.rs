@@ -6,6 +6,11 @@ use crate::modes::{ModeTimer, SPRINT_GOAL, ULTRA_DURATION};
 use crate::scoring::ScoreBoard;
 use crate::state::{GameState, QuitToMenu, SelectedMode};
 
+fn reset_game(score: &mut ScoreBoard, board: &mut Board) {
+    score.reset_preserving_high_score();
+    *board = Board::default();
+}
+
 // ── HUD ──────────────────────────────────────────────────────────────────────
 
 #[derive(Component)]
@@ -362,18 +367,15 @@ pub fn mode_select_input(
 ) {
     if keyboard.just_pressed(KeyCode::Digit1) {
         *selected_mode = SelectedMode::Endless;
-        score.reset_preserving_high_score();
-        *board = Board::default();
+        reset_game(&mut score, &mut board);
         next_state.set(GameState::Playing);
     } else if keyboard.just_pressed(KeyCode::Digit2) {
         *selected_mode = SelectedMode::Sprint;
-        score.reset_preserving_high_score();
-        *board = Board::default();
+        reset_game(&mut score, &mut board);
         next_state.set(GameState::Playing);
     } else if keyboard.just_pressed(KeyCode::Digit3) {
         *selected_mode = SelectedMode::Ultra;
-        score.reset_preserving_high_score();
-        *board = Board::default();
+        reset_game(&mut score, &mut board);
         next_state.set(GameState::Playing);
     } else if keyboard.just_pressed(KeyCode::KeyS) {
         next_state.set(GameState::Settings);
@@ -530,8 +532,7 @@ pub fn game_over_input(
     mut board: ResMut<Board>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
-        score.reset_preserving_high_score();
-        *board = Board::default();
+        reset_game(&mut score, &mut board);
         next_state.set(GameState::ModeSelect);
     }
 }
@@ -618,8 +619,7 @@ pub fn sprint_complete_input(
     mut board: ResMut<Board>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
-        score.reset_preserving_high_score();
-        *board = Board::default();
+        reset_game(&mut score, &mut board);
         next_state.set(GameState::ModeSelect);
     }
 }

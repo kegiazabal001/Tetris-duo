@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::board::Board;
 use crate::config::AppConfig;
-use crate::modes::ModeTimer;
+use crate::modes::{ModeTimer, SPRINT_GOAL, ULTRA_DURATION};
 use crate::scoring::ScoreBoard;
 use crate::state::{GameState, QuitToMenu, SelectedMode};
 
@@ -23,7 +23,13 @@ pub struct ComboText;
 #[derive(Component)]
 pub struct HighScoreText;
 
-pub fn setup_hud(mut commands: Commands) {
+#[derive(Component)]
+pub struct ModeTimerText;
+
+#[derive(Component)]
+pub struct LinesRemainingText;
+
+pub fn setup_hud(mut commands: Commands, mode: Res<SelectedMode>) {
     commands
         .spawn((
             HudRoot,
@@ -62,6 +68,31 @@ pub fn setup_hud(mut commands: Commands) {
                 TextColor(Color::srgb(0.6, 0.9, 1.0)),
                 TextFont::from_font_size(16.0),
             ));
+            match *mode {
+                SelectedMode::Sprint => {
+                    parent.spawn((
+                        LinesRemainingText,
+                        Text::new(format!("Lines: {SPRINT_GOAL}")),
+                        TextColor(Color::srgb(0.4, 1.0, 0.6)),
+                        TextFont::from_font_size(20.0),
+                    ));
+                    parent.spawn((
+                        ModeTimerText,
+                        Text::new("00:00.0"),
+                        TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                        TextFont::from_font_size(20.0),
+                    ));
+                }
+                SelectedMode::Ultra => {
+                    parent.spawn((
+                        ModeTimerText,
+                        Text::new("02:00"),
+                        TextColor(Color::WHITE),
+                        TextFont::from_font_size(22.0),
+                    ));
+                }
+                SelectedMode::Endless => {}
+            }
         });
 }
 
@@ -74,21 +105,73 @@ pub fn despawn_hud(mut commands: Commands, query: Query<Entity, With<HudRoot>>) 
 #[allow(clippy::type_complexity)]
 pub fn update_hud(
     score: Res<ScoreBoard>,
+    mode: Res<SelectedMode>,
+    timer: Res<ModeTimer>,
     mut score_q: Query<
         &mut Text,
-        (With<ScoreText>, Without<LevelText>, Without<ComboText>, Without<HighScoreText>),
+        (
+            With<ScoreText>,
+            Without<LevelText>,
+            Without<ComboText>,
+            Without<HighScoreText>,
+            Without<ModeTimerText>,
+            Without<LinesRemainingText>,
+        ),
     >,
     mut level_q: Query<
         &mut Text,
-        (With<LevelText>, Without<ScoreText>, Without<ComboText>, Without<HighScoreText>),
+        (
+            With<LevelText>,
+            Without<ScoreText>,
+            Without<ComboText>,
+            Without<HighScoreText>,
+            Without<ModeTimerText>,
+            Without<LinesRemainingText>,
+        ),
     >,
     mut combo_q: Query<
         &mut Text,
-        (With<ComboText>, Without<ScoreText>, Without<LevelText>, Without<HighScoreText>),
+        (
+            With<ComboText>,
+            Without<ScoreText>,
+            Without<LevelText>,
+            Without<HighScoreText>,
+            Without<ModeTimerText>,
+            Without<LinesRemainingText>,
+        ),
     >,
     mut hs_q: Query<
         &mut Text,
-        (With<HighScoreText>, Without<ScoreText>, Without<LevelText>, Without<ComboText>),
+        (
+            With<HighScoreText>,
+            Without<ScoreText>,
+            Without<LevelText>,
+            Without<ComboText>,
+            Without<ModeTimerText>,
+            Without<LinesRemainingText>,
+        ),
+    >,
+    mut lines_q: Query<
+        &mut Text,
+        (
+            With<LinesRemainingText>,
+            Without<ScoreText>,
+            Without<LevelText>,
+            Without<ComboText>,
+            Without<HighScoreText>,
+            Without<ModeTimerText>,
+        ),
+    >,
+    mut mode_timer_q: Query<
+        (&mut Text, &mut TextColor),
+        (
+            With<ModeTimerText>,
+            Without<ScoreText>,
+            Without<LevelText>,
+            Without<ComboText>,
+            Without<HighScoreText>,
+            Without<LinesRemainingText>,
+        ),
     >,
 ) {
     for mut text in &mut score_q {
@@ -106,6 +189,29 @@ pub fn update_hud(
     }
     for mut text in &mut hs_q {
         **text = format!("Best: {}", score.high_score);
+    }
+
+    match *mode {
+        SelectedMode::Sprint => {
+            let remaining = SPRINT_GOAL.saturating_sub(score.lines_cleared);
+            for mut text in &mut lines_q {
+                **text = format!("Lines: {remaining}");
+            }
+            for (mut text, _) in &mut mode_timer_q {
+                **text = fmt_time_sprint(timer.elapsed);
+            }
+        }
+        SelectedMode::Ultra => {
+            let remaining = (ULTRA_DURATION - timer.elapsed).max(0.0);
+            let total_secs = remaining as u32;
+            let color =
+                if remaining < 30.0 { Color::srgb(1.0, 0.2, 0.2) } else { Color::WHITE };
+            for (mut text, mut text_color) in &mut mode_timer_q {
+                **text = format!("{:02}:{:02}", total_secs / 60, total_secs % 60);
+                *text_color = TextColor(color);
+            }
+        }
+        SelectedMode::Endless => {}
     }
 }
 
@@ -339,7 +445,34 @@ pub fn pause_input(
 #[derive(Component)]
 pub struct GameOverRoot;
 
-pub fn setup_game_over(mut commands: Commands, score: Res<ScoreBoard>) {
+pub fn setup_game_over(
+    mut commands: Commands,
+    score: Res<ScoreBoard>,
+    mode: Res<SelectedMode>,
+    timer: Res<ModeTimer>,
+    config: Res<AppConfig>,
+) {
+    let is_timeout = *mode == SelectedMode::Ultra && timer.elapsed >= ULTRA_DURATION;
+
+    let (title, title_color) = if is_timeout {
+        ("TIME'S UP!", Color::srgb(1.0, 0.6, 0.1))
+    } else {
+        ("GAME OVER", Color::srgb(1.0, 0.3, 0.3))
+    };
+
+    let best_line = match *mode {
+        SelectedMode::Endless => {
+            format!("Best: {} pts", config.high_scores.endless.max(score.score))
+        }
+        SelectedMode::Sprint => match config.high_scores.sprint_best {
+            Some(secs) => format!("Best: {}", fmt_time_sprint(secs)),
+            None => "Best: —".to_string(),
+        },
+        SelectedMode::Ultra => {
+            format!("Best: {} pts", config.high_scores.ultra_best.max(score.score))
+        }
+    };
+
     commands
         .spawn((
             GameOverRoot,
@@ -356,8 +489,8 @@ pub fn setup_game_over(mut commands: Commands, score: Res<ScoreBoard>) {
         ))
         .with_children(|parent| {
             parent.spawn((
-                Text::new("GAME OVER"),
-                TextColor(Color::srgb(1.0, 0.3, 0.3)),
+                Text::new(title),
+                TextColor(title_color),
                 TextFont::from_font_size(48.0),
             ));
             parent.spawn((
@@ -366,7 +499,7 @@ pub fn setup_game_over(mut commands: Commands, score: Res<ScoreBoard>) {
                 TextFont::from_font_size(28.0),
             ));
             parent.spawn((
-                Text::new(format!("Best: {}", score.high_score.max(score.score))),
+                Text::new(best_line),
                 TextColor(Color::srgb(0.6, 0.9, 1.0)),
                 TextFont::from_font_size(22.0),
             ));

@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::config::AppConfig;
 use crate::scoring::ScoreBoard;
 use crate::state::{GameState, SelectedMode};
 
@@ -29,6 +30,41 @@ pub fn check_sprint_complete(
 ) {
     if *mode == SelectedMode::Sprint && score.lines_cleared >= SPRINT_GOAL {
         next_state.set(GameState::SprintComplete);
+    }
+}
+
+/// Saves Sprint best time when SprintComplete is entered.
+pub fn save_sprint_score(
+    mode: Res<SelectedMode>,
+    timer: Res<ModeTimer>,
+    mut config: ResMut<AppConfig>,
+) {
+    if *mode != SelectedMode::Sprint {
+        return;
+    }
+    let elapsed = timer.elapsed;
+    let is_new_best = match config.high_scores.sprint_best {
+        None => true,
+        Some(best) => elapsed < best,
+    };
+    if is_new_best {
+        config.high_scores.sprint_best = Some(elapsed);
+        config.save();
+    }
+}
+
+/// Saves Ultra best score when GameOver is entered (any cause) in Ultra mode.
+pub fn save_ultra_score(
+    mode: Res<SelectedMode>,
+    score: Res<ScoreBoard>,
+    mut config: ResMut<AppConfig>,
+) {
+    if *mode != SelectedMode::Ultra {
+        return;
+    }
+    if score.score > config.high_scores.ultra_best {
+        config.high_scores.ultra_best = score.score;
+        config.save();
     }
 }
 

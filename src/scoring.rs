@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::config::AppConfig;
 use crate::piece::TSpinType;
 use crate::player::{GameOverEvent, LinesCleared};
+use crate::state::SelectedMode;
 
 #[derive(Event)]
 pub struct LevelUpEvent {
@@ -38,10 +39,11 @@ impl Default for ScoreBoard {
 pub fn save_high_score(
     mut score: ResMut<ScoreBoard>,
     mut config: ResMut<AppConfig>,
+    mode: Res<SelectedMode>,
     mut ev: EventReader<GameOverEvent>,
 ) {
     for _ in ev.read() {
-        if score.score > config.high_scores.endless {
+        if *mode == SelectedMode::Endless && score.score > config.high_scores.endless {
             config.high_scores.endless = score.score;
             score.high_score = score.score;
             config.save();

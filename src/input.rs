@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
+use crate::config::{str_to_keycode, AppConfig};
 use crate::player::PlayerId;
 
 #[derive(Actionlike, Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect)]
@@ -14,29 +15,18 @@ pub enum PieceAction {
     Hold,
 }
 
-pub fn input_map_for(player: PlayerId) -> InputMap<PieceAction> {
+pub fn input_map_for(player: PlayerId, config: &AppConfig) -> InputMap<PieceAction> {
     let mut map = InputMap::default();
-    match player {
-        PlayerId::P1 => {
-            map.insert(PieceAction::MoveLeft, KeyCode::KeyA);
-            map.insert(PieceAction::MoveRight, KeyCode::KeyD);
-            map.insert(PieceAction::SoftDrop, KeyCode::KeyS);
-            map.insert(PieceAction::HardDrop, KeyCode::Space);
-            map.insert(PieceAction::RotateCCW, KeyCode::KeyQ);
-            map.insert(PieceAction::RotateCW, KeyCode::KeyW);
-            map.insert(PieceAction::RotateCW, KeyCode::KeyE);
-            map.insert(PieceAction::Hold, KeyCode::ShiftLeft);
-        }
-        PlayerId::P2 => {
-            map.insert(PieceAction::MoveLeft, KeyCode::ArrowLeft);
-            map.insert(PieceAction::MoveRight, KeyCode::ArrowRight);
-            map.insert(PieceAction::SoftDrop, KeyCode::ArrowDown);
-            map.insert(PieceAction::HardDrop, KeyCode::Enter);
-            map.insert(PieceAction::RotateCCW, KeyCode::ControlRight);
-            map.insert(PieceAction::RotateCW, KeyCode::ArrowUp);
-            map.insert(PieceAction::RotateCW, KeyCode::Slash);
-            map.insert(PieceAction::Hold, KeyCode::ShiftRight);
-        }
-    }
+    let bindings = match player {
+        PlayerId::P1 => &config.p1,
+        PlayerId::P2 => &config.p2,
+    };
+    map.insert(PieceAction::MoveLeft,  str_to_keycode(&bindings.move_left));
+    map.insert(PieceAction::MoveRight, str_to_keycode(&bindings.move_right));
+    map.insert(PieceAction::SoftDrop,  str_to_keycode(&bindings.soft_drop));
+    map.insert(PieceAction::HardDrop,  str_to_keycode(&bindings.hard_drop));
+    map.insert(PieceAction::RotateCW,  str_to_keycode(&bindings.rotate_cw));
+    map.insert(PieceAction::RotateCCW, str_to_keycode(&bindings.rotate_ccw));
+    map.insert(PieceAction::Hold,      str_to_keycode(&bindings.hold));
     map
 }

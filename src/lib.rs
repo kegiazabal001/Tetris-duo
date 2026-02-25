@@ -1,6 +1,7 @@
 pub mod audio;
 pub mod board;
 pub mod collision;
+pub mod config;
 pub mod input;
 pub mod piece;
 pub mod player;
@@ -12,6 +13,7 @@ pub mod ui;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
+use crate::config::AppConfig;
 use crate::input::PieceAction;
 use crate::player::InputGrace;
 use crate::state::{GameState, QuitToMenu};
@@ -22,6 +24,7 @@ impl Plugin for TetrisDuoPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<GameState>()
             .add_plugins(InputManagerPlugin::<PieceAction>::default())
+            .init_resource::<AppConfig>()
             .init_resource::<board::Board>()
             .init_resource::<scoring::ScoreBoard>()
             .init_resource::<InputGrace>()
@@ -34,8 +37,8 @@ impl Plugin for TetrisDuoPlugin {
             .add_event::<player::GameOverEvent>()
             .add_event::<scoring::LevelUpEvent>()
             // Startup
-            .add_systems(PreStartup, audio::load_audio)
-            .add_systems(Startup, (scoring::load_high_score, audio::start_bg_music))
+            .add_systems(PreStartup, (audio::load_audio, config::load_config))
+            .add_systems(Startup, audio::start_bg_music)
             // Menu
             .add_systems(OnEnter(GameState::Menu), ui::setup_menu)
             .add_systems(OnExit(GameState::Menu), ui::despawn_menu)

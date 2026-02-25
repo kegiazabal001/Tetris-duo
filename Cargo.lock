@@ -3932,11 +3932,13 @@ dependencies = [
 
 [[package]]
 name = "tetris-duo"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "bevy",
  "leafwing-input-manager",
  "rand",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -7,6 +7,7 @@ use rand::thread_rng;
 
 use crate::board::{Board, PieceColor, COLS, VISIBLE_ROWS};
 use crate::collision::{self, piece_fits, PiecePos};
+use crate::config::AppConfig;
 use crate::input::{input_map_for, PieceAction};
 use crate::piece::{Rotation, TSpinType, TetrominoKind};
 use crate::scoring::ScoreBoard;
@@ -196,14 +197,14 @@ fn apply_rotation(
 }
 
 /// Spawn both player entities with their input maps and piece bags.
-pub fn spawn_players(mut commands: Commands) {
+pub fn spawn_players(mut commands: Commands, config: Res<AppConfig>) {
     for player in [PlayerId::P1, PlayerId::P2] {
         let mut bag = PieceBag::new(player);
         let kind = bag.pop();
         commands.spawn((
             fresh_piece(player, kind),
             bag,
-            input_map_for(player),
+            input_map_for(player, &config),
             ActionState::<PieceAction>::default(),
         ));
     }

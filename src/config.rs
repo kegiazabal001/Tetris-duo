@@ -100,6 +100,40 @@ impl AppConfig {
             let _ = std::fs::write(path, json);
         }
     }
+
+    /// Compares `score` against the stored endless best; saves and returns true if it is new.
+    pub fn try_update_endless(&mut self, score: u32) -> bool {
+        if score > self.high_scores.endless {
+            self.high_scores.endless = score;
+            self.save();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Compares `score` against the stored ultra best; saves and returns true if it is new.
+    pub fn try_update_ultra(&mut self, score: u32) -> bool {
+        if score > self.high_scores.ultra_best {
+            self.high_scores.ultra_best = score;
+            self.save();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Compares `elapsed` against the stored sprint best (lower is better);
+    /// saves and returns true if it is new.
+    pub fn try_update_sprint(&mut self, elapsed: f32) -> bool {
+        if self.high_scores.sprint_best.map_or(true, |best| elapsed < best) {
+            self.high_scores.sprint_best = Some(elapsed);
+            self.save();
+            true
+        } else {
+            false
+        }
+    }
 }
 
 /// PreStartup system: loads AppConfig from disk and seeds ScoreBoard's high score.

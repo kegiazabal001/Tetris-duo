@@ -42,10 +42,7 @@ pub fn save_ultra_score(
     if *mode != SelectedMode::Ultra {
         return;
     }
-    if score.score > config.high_scores.ultra_best {
-        config.high_scores.ultra_best = score.score;
-        config.save();
-    }
+    config.try_update_ultra(score.score);
 }
 
 /// Ultra timeout condition: 120 s elapsed → GameOver.

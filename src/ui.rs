@@ -551,12 +551,7 @@ pub fn setup_sprint_complete(
     let time_str = fmt_time_sprint(elapsed);
 
     let old_best = config.high_scores.sprint_best;
-    let is_new_best = old_best.map_or(true, |best| elapsed < best);
-
-    if is_new_best {
-        config.high_scores.sprint_best = Some(elapsed);
-        config.save();
-    }
+    let is_new_best = config.try_update_sprint(elapsed);
 
     let (record_text, record_color) = if is_new_best {
         ("¡NUEVO RÉCORD!".to_string(), Color::srgb(0.2, 1.0, 0.3))

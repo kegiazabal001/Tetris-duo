@@ -43,10 +43,8 @@ pub fn save_high_score(
     mut ev: EventReader<GameOverEvent>,
 ) {
     for _ in ev.read() {
-        if *mode == SelectedMode::Endless && score.score > config.high_scores.endless {
-            config.high_scores.endless = score.score;
+        if *mode == SelectedMode::Endless && config.try_update_endless(score.score) {
             score.high_score = score.score;
-            config.save();
         }
     }
 }

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::board::Board;
 use crate::config::AppConfig;
-use crate::modes::{ModeTimer, SPRINT_GOAL, ULTRA_DURATION};
+use crate::modes::{ModeTimer, SprintResult, SPRINT_GOAL, ULTRA_DURATION};
 use crate::scoring::ScoreBoard;
 use crate::state::{GameState, QuitToMenu, SelectedMode};
 
@@ -328,7 +328,7 @@ pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>) {
             ));
             // Sprint
             parent.spawn((
-                Text::new(format!("2  SPRINT  (40 lines)  —  {sprint_best}")),
+                Text::new(format!("2  SPRINT  ({} lines)  —  {sprint_best}", SPRINT_GOAL)),
                 TextColor(Color::srgb(0.4, 1.0, 0.6)),
                 TextFont::from_font_size(24.0),
             ));
@@ -543,21 +543,16 @@ pub struct SprintCompleteRoot;
 
 pub fn setup_sprint_complete(
     mut commands: Commands,
-    timer: Res<ModeTimer>,
-    config: Res<AppConfig>,
+    result: Res<SprintResult>,
 ) {
-    let elapsed = timer.elapsed;
+    let elapsed = result.elapsed;
     let time_str = fmt_time_sprint(elapsed);
 
-    let is_new_best = match config.high_scores.sprint_best {
-        None => true,
-        Some(best) => elapsed < best,
-    };
-
-    let (record_text, record_color) = if is_new_best {
+    let (record_text, record_color) = if result.is_new_best {
         ("¡NUEVO RÉCORD!".to_string(), Color::srgb(0.2, 1.0, 0.3))
     } else {
-        let best_str = fmt_time_sprint(config.high_scores.sprint_best.unwrap_or(elapsed));
+        // prev_best is guaranteed Some when is_new_best is false
+        let best_str = fmt_time_sprint(result.prev_best.unwrap_or(elapsed));
         (format!("Mejor: {best_str}"), Color::srgb(0.5, 0.5, 0.5))
     };
 
@@ -835,28 +830,33 @@ pub fn settings_input(
     if let Some((player, action)) = rebind.pending {
         let captured = keyboard.get_just_pressed().find(|&&kc| kc != KeyCode::Escape).copied();
         if let Some(kc) = captured {
-            let key_str = keycode_to_str(kc);
-            {
-                let b = match player {
-                    PlayerId::P1 => &mut config.p1,
-                    PlayerId::P2 => &mut config.p2,
-                };
-                match action {
-                    PieceAction::MoveLeft  => b.move_left  = key_str.clone(),
-                    PieceAction::MoveRight => b.move_right = key_str.clone(),
-                    PieceAction::SoftDrop  => b.soft_drop  = key_str.clone(),
-                    PieceAction::HardDrop  => b.hard_drop  = key_str.clone(),
-                    PieceAction::RotateCW  => b.rotate_cw  = key_str.clone(),
-                    PieceAction::RotateCCW => b.rotate_ccw = key_str.clone(),
-                    PieceAction::Hold      => b.hold        = key_str.clone(),
+            // Only accept keys that are in the whitelist so the binding
+            // round-trips correctly through the JSON config.
+            if let Some(key_str) = keycode_to_str(kc) {
+                {
+                    let b = match player {
+                        PlayerId::P1 => &mut config.p1,
+                        PlayerId::P2 => &mut config.p2,
+                    };
+                    match action {
+                        PieceAction::MoveLeft  => b.move_left  = key_str.clone(),
+                        PieceAction::MoveRight => b.move_right = key_str.clone(),
+                        PieceAction::SoftDrop  => b.soft_drop  = key_str.clone(),
+                        PieceAction::HardDrop  => b.hard_drop  = key_str.clone(),
+                        PieceAction::RotateCW  => b.rotate_cw  = key_str.clone(),
+                        PieceAction::RotateCCW => b.rotate_ccw = key_str.clone(),
+                        PieceAction::Hold      => b.hold        = key_str.clone(),
+                    }
                 }
-            }
-            for (label, mut text) in &mut labels {
-                if label.player == player && label.action == action {
-                    **text = format!("[{key_str}]");
+                for (label, mut text) in &mut labels {
+                    if label.player == player && label.action == action {
+                        **text = format!("[{key_str}]");
+                    }
                 }
+                rebind.pending = None;
             }
-            rebind.pending = None;
+            // If the key is not in the whitelist, stay in capture mode and wait
+            // for a recognised key (the user will see the row still blinking).
         } else if keyboard.just_pressed(KeyCode::Escape) {
             rebind.pending = None;
         }

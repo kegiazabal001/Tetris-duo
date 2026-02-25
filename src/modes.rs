@@ -12,6 +12,15 @@ pub struct ModeTimer {
     pub elapsed: f32,
 }
 
+/// Captures the sprint result computed at the moment of saving, so the UI can
+/// display "¡NUEVO RÉCORD!" without racing against the already-updated config.
+#[derive(Resource)]
+pub struct SprintResult {
+    pub elapsed:     f32,
+    pub is_new_best: bool,
+    pub prev_best:   Option<f32>,
+}
+
 /// Resets the timer when a game session starts.
 pub fn start_mode_timer(mut timer: ResMut<ModeTimer>) {
     timer.elapsed = 0.0;
@@ -34,19 +43,24 @@ pub fn check_sprint_complete(
 }
 
 /// Saves Sprint best time when SprintComplete is entered.
+/// Also inserts a `SprintResult` resource so the UI can display the correct
+/// "¡NUEVO RÉCORD!" state before the config is mutated.
 pub fn save_sprint_score(
     mode: Res<SelectedMode>,
     timer: Res<ModeTimer>,
     mut config: ResMut<AppConfig>,
+    mut commands: Commands,
 ) {
     if *mode != SelectedMode::Sprint {
         return;
     }
     let elapsed = timer.elapsed;
-    let is_new_best = match config.high_scores.sprint_best {
+    let prev_best = config.high_scores.sprint_best;
+    let is_new_best = match prev_best {
         None => true,
         Some(best) => elapsed < best,
     };
+    commands.insert_resource(SprintResult { elapsed, is_new_best, prev_best });
     if is_new_best {
         config.high_scores.sprint_best = Some(elapsed);
         config.save();

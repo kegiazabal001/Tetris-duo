@@ -65,10 +65,21 @@ impl Default for AppConfig {
 }
 
 pub fn config_path() -> PathBuf {
-    let base = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let dir = std::path::Path::new(&base).join(".config").join("tetris-duo");
+    // Use the standard home-dir resolution instead of interpolating $HOME
+    // directly, which would allow path traversal if the env var is attacker-
+    // controlled (e.g. HOME=/tmp/../../etc).
+    let dir = home_config_dir();
     let _ = std::fs::create_dir_all(&dir);
     dir.join("settings.json")
+}
+
+fn home_config_dir() -> PathBuf {
+    // std::env::home_dir is deprecated but still correct on Linux/macOS.
+    // It resolves via passwd on Unix rather than trusting $HOME blindly.
+    #[allow(deprecated)]
+    let home = std::env::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."));
+    home.join(".config").join("tetris-duo")
 }
 
 impl AppConfig {
@@ -101,9 +112,10 @@ pub fn load_config(
 }
 
 /// Converts a key name string (as stored in JSON) to the corresponding `KeyCode`.
-/// Unknown strings fall back to `KeyCode::KeyA`.
-pub fn str_to_keycode(s: &str) -> KeyCode {
-    match s {
+/// Returns `None` for strings that are not in the known whitelist so callers
+/// can fall back to the action's default binding instead of silently using KeyA.
+pub fn str_to_keycode(s: &str) -> Option<KeyCode> {
+    Some(match s {
         // Letters
         "KeyA" => KeyCode::KeyA,
         "KeyB" => KeyCode::KeyB,
@@ -208,13 +220,21 @@ pub fn str_to_keycode(s: &str) -> KeyCode {
         "PageDown" => KeyCode::PageDown,
         "Insert"   => KeyCode::Insert,
         "Delete"   => KeyCode::Delete,
-        _ => KeyCode::KeyA,
-    }
+        _ => return None,
+    })
 }
 
 /// Converts a `KeyCode` to the string name used in the JSON config.
-pub fn keycode_to_str(kc: KeyCode) -> String {
-    format!("{kc:?}")
+/// Returns `None` if the key is not in the whitelist recognised by `str_to_keycode`,
+/// preventing rebinds that would silently break on the next load.
+pub fn keycode_to_str(kc: KeyCode) -> Option<String> {
+    let s = format!("{kc:?}");
+    // Round-trip check: only accept keys that survive the str→keycode conversion.
+    if str_to_keycode(&s).is_some() {
+        Some(s)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]

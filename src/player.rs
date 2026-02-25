@@ -11,6 +11,7 @@ use crate::collision::{self, piece_fits, PiecePos};
 use crate::config::AppConfig;
 use crate::input::{input_map_for, PieceAction};
 use crate::piece::{Rotation, TSpinType, TetrominoKind};
+use crate::constants::{ARR_RATE, DAS_DELAY, LOCK_DELAY};
 use crate::scoring::ScoreBoard;
 use crate::state::GameState;
 
@@ -129,10 +130,6 @@ pub struct PieceRotated {
 
 #[derive(Event)]
 pub struct GameOverEvent;
-
-pub(crate) const LOCK_DELAY: f32 = 0.5;
-const DAS_DELAY: f32 = 0.167;
-const ARR_RATE: f32 = 0.033;
 
 /// Collects position snapshots for both players from any query iterator
 /// that yields `(PlayerId, PiecePos)` pairs.

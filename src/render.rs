@@ -8,7 +8,7 @@ use crate::collision::PiecePos;
 use crate::player::{ActivePiece, LinesCleared, PieceBag, PieceLocked, PlayerId};
 use crate::scoring::{LevelUpEvent, ScoreBoard};
 
-pub const CELL_SIZE: f32 = 28.0;
+pub use crate::constants::CELL_SIZE;
 pub const BOARD_OFFSET_X: f32 = -(COLS as f32 * CELL_SIZE) / 2.0;
 pub const BOARD_OFFSET_Y: f32 = -(VISIBLE_ROWS as f32 * CELL_SIZE) / 2.0;
 
@@ -20,8 +20,7 @@ const HOLD_PREVIEW_Y: f32 = -80.0;
 const NEXT_PREVIEW_COUNT: usize = 3;
 const NEXT_PREVIEW_SLOT_H: f32 = 70.0;
 
-pub const LINE_CLEAR_FLASH_DURATION: f32 = 0.35;
-pub const LOCK_FLASH_DURATION: f32 = 0.25;
+pub use crate::constants::{LINE_CLEAR_FLASH_DURATION, LOCK_FLASH_DURATION};
 
 // ── Color helpers ─────────────────────────────────────────────────────────────
 

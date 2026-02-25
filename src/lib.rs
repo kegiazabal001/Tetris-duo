@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod board;
+pub mod constants;
 pub mod collision;
 pub mod config;
 pub mod input;

@@ -4,8 +4,7 @@ use crate::config::AppConfig;
 use crate::scoring::ScoreBoard;
 use crate::state::{GameState, SelectedMode};
 
-pub const SPRINT_GOAL: u32 = 20;
-pub const ULTRA_DURATION: f32 = 120.0;
+pub use crate::constants::{SPRINT_GOAL, ULTRA_DURATION};
 
 #[derive(Resource, Default)]
 pub struct ModeTimer {

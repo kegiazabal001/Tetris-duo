@@ -660,20 +660,15 @@ pub struct BindingLabel {
     pub action: PieceAction,
 }
 
-const ACTION_NAMES: [&str; 7] =
-    ["Move Left", "Move Right", "Soft Drop", "Hard Drop", "Rotate CW", "Rotate CCW", "Hold"];
-
-fn action_for_index(i: usize) -> PieceAction {
-    match i {
-        0 => PieceAction::MoveLeft,
-        1 => PieceAction::MoveRight,
-        2 => PieceAction::SoftDrop,
-        3 => PieceAction::HardDrop,
-        4 => PieceAction::RotateCW,
-        5 => PieceAction::RotateCCW,
-        _ => PieceAction::Hold,
-    }
-}
+const ACTIONS: [(PieceAction, &str); 7] = [
+    (PieceAction::MoveLeft,   "Move Left"),
+    (PieceAction::MoveRight,  "Move Right"),
+    (PieceAction::SoftDrop,   "Soft Drop"),
+    (PieceAction::HardDrop,   "Hard Drop"),
+    (PieceAction::RotateCW,   "Rotate CW"),
+    (PieceAction::RotateCCW,  "Rotate CCW"),
+    (PieceAction::Hold,       "Hold"),
+];
 
 fn binding_str(config: &AppConfig, player: PlayerId, action: PieceAction) -> String {
     let b = match player {
@@ -745,8 +740,7 @@ pub fn setup_settings(mut commands: Commands, config: Res<AppConfig>) {
                 });
 
             // Action rows
-            for (i, &name) in ACTION_NAMES.iter().enumerate() {
-                let action = action_for_index(i);
+            for (action, name) in ACTIONS {
                 let p1_str = binding_str(&config, PlayerId::P1, action);
                 let p2_str = binding_str(&config, PlayerId::P2, action);
 
@@ -805,7 +799,7 @@ pub fn update_settings_highlight(
     mut labels: Query<(&BindingLabel, &mut TextColor)>,
 ) {
     let Some(cursor) = cursor else { return };
-    let action_at_row = action_for_index(cursor.row);
+    let action_at_row = ACTIONS[cursor.row].0;
 
     for (label, mut color) in &mut labels {
         let is_selected_row = label.action == action_at_row;
@@ -889,7 +883,7 @@ pub fn settings_input(
     // Enter: start capture
     if keyboard.just_pressed(KeyCode::Enter) {
         let player = if cursor.col == 0 { PlayerId::P1 } else { PlayerId::P2 };
-        let action = action_for_index(cursor.row);
+        let action = ACTIONS[cursor.row].0;
         rebind.pending = Some((player, action));
     }
 

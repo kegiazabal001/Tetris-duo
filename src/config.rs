@@ -86,8 +86,9 @@ impl AppConfig {
     pub fn load() -> Self {
         let path = config_path();
         if let Ok(contents) = std::fs::read_to_string(&path) {
-            if let Ok(config) = serde_json::from_str(&contents) {
-                return config;
+            match serde_json::from_str(&contents) {
+                Ok(config) => return config,
+                Err(e) => eprintln!("Advertencia: no se pudo leer settings.json ({e}), usando valores por defecto"),
             }
         }
         Self::default()

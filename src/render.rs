@@ -138,8 +138,10 @@ fn cell_pos(col: usize, row: usize) -> Vec3 {
 /// Centering offset so each piece looks centered in its 4×4 preview box.
 fn preview_center_offset(kind: TetrominoKind) -> (f32, f32) {
     let cells = piece::cells(kind, Rotation::R0);
-    let cx: f32 = cells.iter().map(|(x, _)| *x as f32).sum::<f32>() / 4.0;
-    let cy: f32 = cells.iter().map(|(_, y)| *y as f32).sum::<f32>() / 4.0;
+    debug_assert_eq!(cells.len(), 4, "preview_center_offset: pieza no tiene 4 células");
+    let n = cells.len() as f32;
+    let cx: f32 = cells.iter().map(|(x, _)| *x as f32).sum::<f32>() / n;
+    let cy: f32 = cells.iter().map(|(_, y)| *y as f32).sum::<f32>() / n;
     (-cx, -cy)
 }
 
@@ -236,8 +238,7 @@ pub fn setup_board_visuals(mut commands: Commands) {
     }
 
     // Panel backgrounds for P1 (left) and P2 (right)
-    for (panel_x, label) in [(P1_PANEL_X, "P1"), (P2_PANEL_X, "P2")] {
-        let _ = label;
+    for (panel_x, _) in [(P1_PANEL_X, "P1"), (P2_PANEL_X, "P2")] {
         // Next preview background (covers 3 slots)
         let next_panel_center_y = NEXT_PREVIEW_Y - NEXT_PREVIEW_SLOT_H;
         commands.spawn((

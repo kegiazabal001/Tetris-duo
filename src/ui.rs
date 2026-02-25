@@ -549,8 +549,8 @@ pub fn setup_sprint_complete(
     let elapsed = timer.elapsed;
     let time_str = fmt_time_sprint(elapsed);
 
-    let prev_best = config.high_scores.sprint_best;
-    let is_new_best = prev_best.map_or(true, |best| elapsed < best);
+    let old_best = config.high_scores.sprint_best;
+    let is_new_best = old_best.map_or(true, |best| elapsed < best);
 
     if is_new_best {
         config.high_scores.sprint_best = Some(elapsed);
@@ -560,7 +560,7 @@ pub fn setup_sprint_complete(
     let (record_text, record_color) = if is_new_best {
         ("¡NUEVO RÉCORD!".to_string(), Color::srgb(0.2, 1.0, 0.3))
     } else {
-        let best_str = fmt_time_sprint(prev_best.unwrap_or(elapsed));
+        let best_str = fmt_time_sprint(old_best.unwrap_or(elapsed));
         (format!("Mejor: {best_str}"), Color::srgb(0.5, 0.5, 0.5))
     };
 
@@ -846,15 +846,16 @@ pub fn settings_input(
                         PlayerId::P1 => &mut config.p1,
                         PlayerId::P2 => &mut config.p2,
                     };
-                    match action {
-                        PieceAction::MoveLeft  => b.move_left  = key_str.clone(),
-                        PieceAction::MoveRight => b.move_right = key_str.clone(),
-                        PieceAction::SoftDrop  => b.soft_drop  = key_str.clone(),
-                        PieceAction::HardDrop  => b.hard_drop  = key_str.clone(),
-                        PieceAction::RotateCW  => b.rotate_cw  = key_str.clone(),
-                        PieceAction::RotateCCW => b.rotate_ccw = key_str.clone(),
-                        PieceAction::Hold      => b.hold        = key_str.clone(),
-                    }
+                    let field = match action {
+                        PieceAction::MoveLeft  => &mut b.move_left,
+                        PieceAction::MoveRight => &mut b.move_right,
+                        PieceAction::SoftDrop  => &mut b.soft_drop,
+                        PieceAction::HardDrop  => &mut b.hard_drop,
+                        PieceAction::RotateCW  => &mut b.rotate_cw,
+                        PieceAction::RotateCCW => &mut b.rotate_ccw,
+                        PieceAction::Hold      => &mut b.hold,
+                    };
+                    *field = key_str.to_string();
                 }
                 for (label, mut text) in &mut labels {
                     if label.player == player && label.action == action {

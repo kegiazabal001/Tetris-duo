@@ -84,16 +84,19 @@ impl PieceBag {
         if self.queue.len() <= 7 {
             self.refill();
         }
-        self.queue.pop_front().unwrap()
+        debug_assert!(!self.queue.is_empty());
+        self.queue.pop_front().expect("PieceBag::pop: la cola está vacía; esto es un bug")
     }
 
     pub fn peek(&self) -> TetrominoKind {
+        debug_assert!(!self.queue.is_empty());
         self.queue[0]
     }
 
     /// Returns the next N pieces as a stack-allocated array.
     /// Panics if the queue has fewer than N pieces (guaranteed not to happen in normal play).
     pub fn peek_n<const N: usize>(&self) -> [TetrominoKind; N] {
+        debug_assert!(N <= self.queue.len(), "peek_n: N={N} excede cola de len={}", self.queue.len());
         std::array::from_fn(|i| self.queue[i])
     }
 }

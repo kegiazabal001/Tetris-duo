@@ -15,11 +15,16 @@ pub struct AudioAssets {
     pub level_up: Handle<AudioSource>,
     pub game_over: Handle<AudioSource>,
     pub music: Handle<AudioSource>,
+    pub game_music: Handle<AudioSource>,
 }
 
 /// Marker component for the background music entity.
 #[derive(Component)]
 pub struct BgMusic;
+
+/// Marker component for the in-game music entity.
+#[derive(Component)]
+pub struct GameMusic;
 
 fn play(commands: &mut Commands, handle: Handle<AudioSource>) {
     commands.spawn((AudioPlayer::new(handle), PlaybackSettings::ONCE));
@@ -34,10 +39,19 @@ pub fn load_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
         level_up: asset_server.load("audio/level_up.ogg"),
         game_over: asset_server.load("audio/game_over.ogg"),
         music: asset_server.load("audio/retro_menu_groove.ogg"),
+        game_music: asset_server.load("audio/Casual_8bit.ogg"),
     });
 }
 
-pub fn start_bg_music(mut commands: Commands, audio: Res<AudioAssets>, config: Res<AppConfig>) {
+pub fn start_bg_music(
+    mut commands: Commands,
+    audio: Res<AudioAssets>,
+    config: Res<AppConfig>,
+    query_bg: Query<Entity, With<BgMusic>>,
+) {
+    if !query_bg.is_empty() {
+        return;
+    }
     commands.spawn((
         AudioPlayer::new(audio.music.clone()),
         PlaybackSettings {
@@ -50,6 +64,32 @@ pub fn start_bg_music(mut commands: Commands, audio: Res<AudioAssets>, config: R
 }
 
 pub fn stop_bg_music(mut commands: Commands, query: Query<Entity, With<BgMusic>>) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+pub fn start_game_music(
+    mut commands: Commands,
+    audio: Res<AudioAssets>,
+    config: Res<AppConfig>,
+    query_game: Query<Entity, With<GameMusic>>,
+) {
+    if !query_game.is_empty() {
+        return;
+    }
+    commands.spawn((
+        AudioPlayer::new(audio.game_music.clone()),
+        PlaybackSettings {
+            volume: Volume::Linear(config.volume),
+            mode: bevy::audio::PlaybackMode::Loop,
+            ..default()
+        },
+        GameMusic,
+    ));
+}
+
+pub fn stop_game_music(mut commands: Commands, query: Query<Entity, With<GameMusic>>) {
     for entity in query.iter() {
         commands.entity(entity).despawn();
     }

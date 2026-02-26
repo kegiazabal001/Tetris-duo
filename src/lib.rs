@@ -45,7 +45,7 @@ impl Plugin for TetrisDuoPlugin {
             .add_systems(PreStartup, (audio::load_audio, config::load_config))
             .add_systems(Startup, audio::start_bg_music)
             // Menu
-            .add_systems(OnEnter(GameState::Menu), ui::setup_menu)
+            .add_systems(OnEnter(GameState::Menu), (audio::start_bg_music, ui::setup_menu))
             .add_systems(OnExit(GameState::Menu), ui::despawn_menu)
             .add_systems(Update, ui::menu_input.run_if(in_state(GameState::Menu)))
             // ModeSelect
@@ -77,6 +77,8 @@ impl Plugin for TetrisDuoPlugin {
             .add_systems(
                 OnEnter(GameState::Playing),
                 (
+                    audio::stop_bg_music,
+                    audio::start_game_music,
                     modes::start_mode_timer,
                     player::spawn_players,
                     render::setup_board_visuals,
@@ -86,7 +88,7 @@ impl Plugin for TetrisDuoPlugin {
             )
             .add_systems(
                 OnExit(GameState::Playing),
-                (player::despawn_players, render::despawn_board_visuals, ui::despawn_hud),
+                (player::despawn_players, render::despawn_board_visuals, ui::despawn_hud, audio::stop_game_music),
             )
             // Playing: game loop
             .add_systems(
@@ -127,18 +129,18 @@ impl Plugin for TetrisDuoPlugin {
                     .run_if(in_state(GameState::Playing)),
             )
             // Pause
-            .add_systems(OnEnter(GameState::Paused), (ui::setup_pause, audio::stop_bg_music))
+            .add_systems(OnEnter(GameState::Paused), (ui::setup_pause, audio::stop_game_music))
             .add_systems(
                 OnExit(GameState::Paused),
-                (ui::despawn_pause, cleanup_on_quit, audio::start_bg_music),
+                (ui::despawn_pause, cleanup_on_quit),
             )
             .add_systems(Update, ui::pause_input)
             // Game Over
             .add_systems(
                 OnEnter(GameState::GameOver),
-                (modes::save_ultra_score, ui::setup_game_over, audio::stop_bg_music),
+                (modes::save_ultra_score, ui::setup_game_over, audio::start_bg_music),
             )
-            .add_systems(OnExit(GameState::GameOver), (ui::despawn_game_over, audio::start_bg_music))
+            .add_systems(OnExit(GameState::GameOver), ui::despawn_game_over)
             .add_systems(
                 Update,
                 ui::game_over_input.run_if(in_state(GameState::GameOver)),

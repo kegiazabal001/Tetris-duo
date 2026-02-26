@@ -36,14 +36,14 @@ impl Plugin for TetrisDuoPlugin {
             .init_resource::<SelectedMode>()
             .init_resource::<RebindTarget>()
             .init_resource::<modes::ModeTimer>()
+            .init_resource::<audio::AudioAssets>()
             .add_event::<player::PieceLocked>()
             .add_event::<player::LinesCleared>()
             .add_event::<player::PieceRotated>()
             .add_event::<player::GameOverEvent>()
             .add_event::<scoring::LevelUpEvent>()
             // Startup
-            .add_systems(PreStartup, (audio::load_audio, config::load_config))
-            .add_systems(Startup, audio::start_bg_music)
+            .add_systems(PreStartup, config::load_config)
             // Menu
             .add_systems(OnEnter(GameState::Menu), (audio::start_bg_music, ui::setup_menu))
             .add_systems(OnExit(GameState::Menu), ui::despawn_menu)

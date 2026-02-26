@@ -30,17 +30,20 @@ fn play(commands: &mut Commands, handle: Handle<AudioSource>) {
     commands.spawn((AudioPlayer::new(handle), PlaybackSettings::ONCE));
 }
 
-pub fn load_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.insert_resource(AudioAssets {
-        rotate: asset_server.load("audio/rotate.ogg"),
-        land: asset_server.load("audio/land.ogg"),
-        line_clear: asset_server.load("audio/line_clear.ogg"),
-        tetris: asset_server.load("audio/tetris.ogg"),
-        level_up: asset_server.load("audio/level_up.ogg"),
-        game_over: asset_server.load("audio/game_over.ogg"),
-        music: asset_server.load("audio/retro_menu_groove.ogg"),
-        game_music: asset_server.load("audio/Casual_8bit.ogg"),
-    });
+impl FromWorld for AudioAssets {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
+        AudioAssets {
+            rotate: asset_server.load("audio/rotate.ogg"),
+            land: asset_server.load("audio/land.ogg"),
+            line_clear: asset_server.load("audio/line_clear.ogg"),
+            tetris: asset_server.load("audio/tetris.ogg"),
+            level_up: asset_server.load("audio/level_up.ogg"),
+            game_over: asset_server.load("audio/game_over.ogg"),
+            music: asset_server.load("audio/retro_menu_groove.ogg"),
+            game_music: asset_server.load("audio/Casual_8bit.ogg"),
+        }
+    }
 }
 
 pub fn start_bg_music(

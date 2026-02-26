@@ -63,6 +63,15 @@ impl Plugin for TetrisDuoPlugin {
                 (ui::settings_input, ui::update_settings_highlight)
                     .run_if(in_state(GameState::Settings)),
             )
+            // Global mute (Menu + Paused)
+            .add_systems(
+                Update,
+                ui::global_mute_input.run_if(
+                    in_state(GameState::Menu)
+                        .or(in_state(GameState::Paused))
+                        .or(in_state(GameState::ModeSelect)),
+                ),
+            )
             // Playing: enter/exit
             .add_systems(
                 OnEnter(GameState::Playing),
@@ -117,10 +126,10 @@ impl Plugin for TetrisDuoPlugin {
                     .run_if(in_state(GameState::Playing)),
             )
             // Pause
-            .add_systems(OnEnter(GameState::Paused), (ui::setup_pause, audio::pause_bg_music))
+            .add_systems(OnEnter(GameState::Paused), (ui::setup_pause, audio::stop_bg_music))
             .add_systems(
                 OnExit(GameState::Paused),
-                (ui::despawn_pause, cleanup_on_quit, audio::resume_bg_music),
+                (ui::despawn_pause, cleanup_on_quit, audio::start_bg_music),
             )
             .add_systems(Update, ui::pause_input)
             // Game Over

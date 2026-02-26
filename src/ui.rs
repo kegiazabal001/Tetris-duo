@@ -180,7 +180,7 @@ pub fn update_hud(
     >,
 ) {
     for mut text in &mut score_q {
-        **text = format!("Score: {}", score.score);
+        **text = format!("Score: {}", fmt_score(score.score));
     }
     for mut text in &mut level_q {
         **text = format!("Level: {}", score.level);
@@ -193,7 +193,7 @@ pub fn update_hud(
         };
     }
     for mut text in &mut hs_q {
-        **text = format!("Best: {}", score.high_score);
+        **text = format!("Best: {}", fmt_score(score.high_score));
     }
 
     match *mode {
@@ -241,7 +241,7 @@ pub fn setup_menu(mut commands: Commands) {
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(16.0),
+                row_gap: Val::Px(14.0),
                 ..default()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.85)),
@@ -250,27 +250,42 @@ pub fn setup_menu(mut commands: Commands) {
             parent.spawn((
                 Text::new("TETRIS DUO"),
                 TextColor(Color::WHITE),
-                TextFont::from_font_size(48.0),
+                TextFont::from_font_size(52.0),
             ));
             parent.spawn((
-                Text::new("Cooperative — clear lines together!"),
+                Text::new("Cooperative - clear lines together!"),
                 TextColor(Color::srgb(0.6, 0.9, 0.6)),
                 TextFont::from_font_size(18.0),
             ));
+            // Spacer
             parent.spawn((
-                Text::new("Press SPACE to continue"),
+                Text::new(" "),
+                TextFont::from_font_size(8.0),
+            ));
+            parent.spawn((
+                Text::new("SPACE  - select mode"),
+                TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                TextFont::from_font_size(22.0),
+            ));
+            parent.spawn((
+                Text::new("M      - mute / unmute"),
                 TextColor(Color::srgb(0.7, 0.7, 0.7)),
-                TextFont::from_font_size(24.0),
+                TextFont::from_font_size(18.0),
+            ));
+            // Spacer
+            parent.spawn((
+                Text::new(" "),
+                TextFont::from_font_size(8.0),
             ));
             parent.spawn((
-                Text::new("P1: A/D move  W rotate  S soft-drop  Q/E rotate  LShift hold"),
+                Text::new("P1: A/D move  W/Q rotate  S soft-drop  Space hard-drop  LShift hold"),
                 TextColor(Color::srgb(0.4, 0.65, 1.0)),
-                TextFont::from_font_size(15.0),
+                TextFont::from_font_size(14.0),
             ));
             parent.spawn((
-                Text::new("P2: </> move  Up/- rotate  Dn soft-drop  RCtrl rotate  RShift hold"),
+                Text::new("P2: Left/Right move  Up/RCtrl rotate  Down soft-drop  Enter hard-drop  RShift hold"),
                 TextColor(Color::srgb(1.0, 0.75, 0.55)),
-                TextFont::from_font_size(15.0),
+                TextFont::from_font_size(14.0),
             ));
         });
 }
@@ -297,12 +312,12 @@ pub fn menu_input(
 pub struct ModeSelectRoot;
 
 pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>) {
-    let endless_best = format!("Best: {} pts", config.high_scores.endless);
+    let endless_best = format!("Best: {} pts", fmt_score(config.high_scores.endless));
     let sprint_best = match config.high_scores.sprint_best {
         Some(secs) => format!("Best: {}", fmt_time_sprint(secs)),
-        None => "Best: —".to_string(),
+        None => "Best: --".to_string(),
     };
-    let ultra_best = format!("Best: {} pts", config.high_scores.ultra_best);
+    let ultra_best = format!("Best: {} pts", fmt_score(config.high_scores.ultra_best));
 
     commands
         .spawn((
@@ -327,25 +342,25 @@ pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>) {
 
             // Endless
             parent.spawn((
-                Text::new(format!("1  ENDLESS  —  {endless_best}")),
+                Text::new(format!("1  ENDLESS  -  {endless_best}")),
                 TextColor(Color::srgb(0.6, 0.9, 1.0)),
                 TextFont::from_font_size(24.0),
             ));
             // Sprint
             parent.spawn((
-                Text::new(format!("2  SPRINT  ({} lines)  —  {sprint_best}", SPRINT_GOAL)),
+                Text::new(format!("2  SPRINT  ({} lines)  -  {sprint_best}", SPRINT_GOAL)),
                 TextColor(Color::srgb(0.4, 1.0, 0.6)),
                 TextFont::from_font_size(24.0),
             ));
             // Ultra
             parent.spawn((
-                Text::new(format!("3  ULTRA  (2 min)  —  {ultra_best}")),
+                Text::new(format!("3  ULTRA  (2 min)  -  {ultra_best}")),
                 TextColor(Color::srgb(1.0, 0.7, 0.3)),
                 TextFont::from_font_size(24.0),
             ));
 
             parent.spawn((
-                Text::new("S — Settings"),
+                Text::new("S - Settings"),
                 TextColor(Color::srgb(0.6, 0.6, 0.6)),
                 TextFont::from_font_size(18.0),
             ));
@@ -414,7 +429,12 @@ pub fn setup_pause(mut commands: Commands) {
                 TextFont::from_font_size(22.0),
             ));
             parent.spawn((
-                Text::new("Q - quit to menu"),
+                Text::new("M   - mute / unmute"),
+                TextColor(Color::srgb(0.6, 0.6, 0.6)),
+                TextFont::from_font_size(20.0),
+            ));
+            parent.spawn((
+                Text::new("Q   - quit to menu"),
                 TextColor(Color::srgb(0.9, 0.4, 0.4)),
                 TextFont::from_font_size(22.0),
             ));
@@ -470,14 +490,14 @@ pub fn setup_game_over(
 
     let best_line = match *mode {
         SelectedMode::Endless => {
-            format!("Best: {} pts", config.high_scores.endless.max(score.score))
+            format!("Best: {} pts", fmt_score(config.high_scores.endless.max(score.score)))
         }
         SelectedMode::Sprint => match config.high_scores.sprint_best {
             Some(secs) => format!("Best: {}", fmt_time_sprint(secs)),
-            None => "Best: —".to_string(),
+            None => "Best: --".to_string(),
         },
         SelectedMode::Ultra => {
-            format!("Best: {} pts", config.high_scores.ultra_best.max(score.score))
+            format!("Best: {} pts", fmt_score(config.high_scores.ultra_best.max(score.score)))
         }
     };
 
@@ -502,7 +522,7 @@ pub fn setup_game_over(
                 TextFont::from_font_size(48.0),
             ));
             parent.spawn((
-                Text::new(format!("Score: {} | Level: {}", score.score, score.level)),
+                Text::new(format!("Score: {}  |  Level: {}", fmt_score(score.score), score.level)),
                 TextColor(Color::WHITE),
                 TextFont::from_font_size(28.0),
             ));
@@ -621,6 +641,21 @@ pub fn sprint_complete_input(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/// Format a score number with thousands separators (`1234` → `1.234`).
+pub fn fmt_score(n: u32) -> String {
+    let s = n.to_string();
+    let bytes = s.as_bytes();
+    let mut out = String::with_capacity(s.len() + s.len() / 3);
+    let rem = bytes.len() % 3;
+    for (i, &b) in bytes.iter().enumerate() {
+        if i > 0 && (i % 3 == rem) {
+            out.push('.');
+        }
+        out.push(b as char);
+    }
+    out
+}
+
 /// Format seconds as `MM:SS.t` (tenths of second).
 pub fn fmt_time_sprint(secs: f32) -> String {
     let total_tenths = (secs * 10.0) as u32;
@@ -633,6 +668,7 @@ pub fn fmt_time_sprint(secs: f32) -> String {
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 
+use bevy::audio::Volume;
 use crate::config::keycode_to_str;
 use crate::input::PieceAction;
 use crate::player::PlayerId;
@@ -655,6 +691,10 @@ pub struct BindingLabel {
     pub action: PieceAction,
 }
 
+/// Marker for the volume bar text in the settings screen.
+#[derive(Component)]
+pub struct VolumeBar;
+
 const ACTIONS: [(PieceAction, &str); 7] = [
     (PieceAction::MoveLeft,   "Move Left"),
     (PieceAction::MoveRight,  "Move Right"),
@@ -664,6 +704,13 @@ const ACTIONS: [(PieceAction, &str); 7] = [
     (PieceAction::RotateCCW,  "Rotate CCW"),
     (PieceAction::Hold,       "Hold"),
 ];
+
+fn volume_bar_str(volume: f32) -> String {
+    let filled = (volume * 10.0).round() as usize;
+    let empty = 10usize.saturating_sub(filled);
+    let pct = (volume * 100.0).round() as u32;
+    format!("Volume: {}{}  {}%", "#".repeat(filled), "-".repeat(empty), pct)
+}
 
 fn binding_str(config: &AppConfig, player: PlayerId, action: PieceAction) -> String {
     let b = match player {
@@ -772,8 +819,21 @@ pub fn setup_settings(mut commands: Commands, config: Res<AppConfig>) {
                     });
             }
 
+            // Volume control row
             parent.spawn((
-                Text::new("↑↓ row · ←→ P1/P2 · Enter = remap · ESC = save & return"),
+                VolumeBar,
+                Text::new(volume_bar_str(config.volume)),
+                TextColor(Color::srgb(0.8, 0.85, 1.0)),
+                TextFont::from_font_size(18.0),
+            ));
+            parent.spawn((
+                Text::new("< / > to adjust volume"),
+                TextColor(Color::srgb(0.5, 0.5, 0.5)),
+                TextFont::from_font_size(14.0),
+            ));
+
+            parent.spawn((
+                Text::new("Arrow keys: navigate  |  Enter: remap key  |  ESC: save & return"),
                 TextColor(Color::srgb(0.5, 0.5, 0.5)),
                 TextFont::from_font_size(16.0),
             ));
@@ -820,6 +880,8 @@ pub fn settings_input(
     mut config: ResMut<AppConfig>,
     mut next_state: ResMut<NextState<GameState>>,
     mut labels: Query<(&BindingLabel, &mut Text)>,
+    mut volume_bar: Query<&mut Text, (With<VolumeBar>, Without<BindingLabel>)>,
+    mut sink: Query<&mut bevy::audio::AudioSink, With<crate::audio::BgMusic>>,
 ) {
     let Some(mut cursor) = cursor else { return };
 
@@ -861,6 +923,29 @@ pub fn settings_input(
         return;
     }
 
+    // Volume control: BracketLeft = down, BracketRight = up
+    let vol_changed = if keyboard.just_pressed(KeyCode::BracketLeft) {
+        config.volume = (config.volume - 0.1).clamp(0.0, 1.0);
+        // round to nearest 0.1 to avoid float drift
+        config.volume = (config.volume * 10.0).round() / 10.0;
+        true
+    } else if keyboard.just_pressed(KeyCode::BracketRight) {
+        config.volume = (config.volume + 0.1).clamp(0.0, 1.0);
+        config.volume = (config.volume * 10.0).round() / 10.0;
+        true
+    } else {
+        false
+    };
+
+    if vol_changed {
+        for mut s in sink.iter_mut() {
+            s.set_volume(Volume::Linear(config.volume));
+        }
+        for mut text in &mut volume_bar {
+            **text = volume_bar_str(config.volume);
+        }
+    }
+
     // Navigation
     if keyboard.just_pressed(KeyCode::ArrowUp) && cursor.row > 0 {
         cursor.row -= 1;
@@ -886,5 +971,28 @@ pub fn settings_input(
     if keyboard.just_pressed(KeyCode::Escape) {
         config.save();
         next_state.set(GameState::ModeSelect);
+    }
+}
+
+/// Toggle mute on M key press. Active in Menu and Paused states.
+pub fn global_mute_input(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut config: ResMut<AppConfig>,
+    mut sink: Query<&mut bevy::audio::AudioSink, With<crate::audio::BgMusic>>,
+) {
+    if !keyboard.just_pressed(KeyCode::KeyM) {
+        return;
+    }
+    if config.volume > 0.0 {
+        // Mute: save current volume and set to 0
+        config.volume_before_mute = Some(config.volume);
+        config.volume = 0.0;
+    } else {
+        // Unmute: restore saved volume (or default to 1.0)
+        config.volume = config.volume_before_mute.unwrap_or(1.0);
+        config.volume_before_mute = None;
+    }
+    for mut s in sink.iter_mut() {
+        s.set_volume(Volume::Linear(config.volume));
     }
 }

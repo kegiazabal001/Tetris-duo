@@ -1,5 +1,7 @@
+use bevy::audio::Volume;
 use bevy::prelude::*;
 
+use crate::config::AppConfig;
 use crate::piece::TSpinType;
 use crate::player::{GameOverEvent, LinesCleared, PieceRotated};
 use crate::scoring::LevelUpEvent;
@@ -35,10 +37,14 @@ pub fn load_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
     });
 }
 
-pub fn start_bg_music(mut commands: Commands, audio: Res<AudioAssets>) {
+pub fn start_bg_music(mut commands: Commands, audio: Res<AudioAssets>, config: Res<AppConfig>) {
     commands.spawn((
         AudioPlayer::new(audio.music.clone()),
-        PlaybackSettings::LOOP,
+        PlaybackSettings {
+            volume: Volume::Linear(config.volume),
+            mode: bevy::audio::PlaybackMode::Loop,
+            ..default()
+        },
         BgMusic,
     ));
 }
@@ -46,6 +52,13 @@ pub fn start_bg_music(mut commands: Commands, audio: Res<AudioAssets>) {
 pub fn stop_bg_music(mut commands: Commands, query: Query<Entity, With<BgMusic>>) {
     for entity in query.iter() {
         commands.entity(entity).despawn();
+    }
+}
+
+/// Updates the volume of the background music sink to match AppConfig.
+pub fn set_bg_volume(mut query: Query<&mut AudioSink, With<BgMusic>>, config: Res<AppConfig>) {
+    for mut sink in query.iter_mut() {
+        sink.set_volume(Volume::Linear(config.volume));
     }
 }
 

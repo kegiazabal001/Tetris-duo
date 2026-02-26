@@ -47,19 +47,27 @@ pub struct HighScores {
     pub ultra_best:  u32,
 }
 
+fn default_volume() -> f32 { 1.0 }
+
 #[derive(Debug, Clone, Serialize, Deserialize, Resource)]
 pub struct AppConfig {
-    pub p1:          PlayerBindings,
-    pub p2:          PlayerBindings,
-    pub high_scores: HighScores,
+    pub p1:                 PlayerBindings,
+    pub p2:                 PlayerBindings,
+    pub high_scores:        HighScores,
+    #[serde(default = "default_volume")]
+    pub volume:             f32,
+    #[serde(default)]
+    pub volume_before_mute: Option<f32>,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            p1:          PlayerBindings::p1_defaults(),
-            p2:          PlayerBindings::p2_defaults(),
-            high_scores: HighScores::default(),
+            p1:                 PlayerBindings::p1_defaults(),
+            p2:                 PlayerBindings::p2_defaults(),
+            high_scores:        HighScores::default(),
+            volume:             1.0,
+            volume_before_mute: None,
         }
     }
 }

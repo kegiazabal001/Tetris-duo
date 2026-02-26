@@ -111,7 +111,7 @@ mod tests {
             TetrominoKind::T,
             Rotation::R0,
             9,
-            20,
+            18,
             None
         ));
     }

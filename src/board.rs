@@ -1,11 +1,11 @@
-/// Board grid: 18 columns wide, 22 rows tall (20 visible + 2 spawn rows).
+/// Board grid: 18 columns wide, 20 rows tall (18 visible + 2 spawn rows).
 use bevy::prelude::*;
 
 use crate::piece::TetrominoKind;
 
 pub const COLS: usize = 18;
-pub const ROWS: usize = 22;
-pub const VISIBLE_ROWS: usize = 20;
+pub const ROWS: usize = 20;
+pub const VISIBLE_ROWS: usize = 18;
 
 /// Color stored per locked cell: player ownership + piece kind (for per-piece coloring).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

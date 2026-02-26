@@ -859,16 +859,11 @@ pub fn setup_settings(mut commands: Commands, config: Res<AppConfig>) {
                 TextColor(Color::srgb(0.8, 0.85, 1.0)),
                 TextFont::from_font_size(18.0),
             ));
-            parent.spawn((
-                Text::new("- / + to adjust volume"),
-                TextColor(Color::srgb(0.5, 0.5, 0.5)),
-                TextFont::from_font_size(14.0),
-            ));
 
             parent.spawn((
-                Text::new("Arrow keys: navigate  |  Enter: remap key  |  ESC: save & return"),
+                Text::new("Up/Down: navigate  |  Left/Right: select column or adjust volume  |  Enter: remap key  |  ESC: save & return"),
                 TextColor(Color::srgb(0.5, 0.5, 0.5)),
-                TextFont::from_font_size(16.0),
+                TextFont::from_font_size(14.0),
             ));
         });
 }
@@ -880,13 +875,34 @@ pub fn despawn_settings(mut commands: Commands, query: Query<Entity, With<Settin
     commands.remove_resource::<SettingsCursor>();
 }
 
+const VOLUME_ROW: usize = ACTIONS.len(); // row 7
+
 /// Updates the highlight colors of binding labels based on cursor + rebind state.
 pub fn update_settings_highlight(
     cursor: Option<Res<SettingsCursor>>,
     rebind: Res<RebindTarget>,
     mut labels: Query<(&BindingLabel, &mut TextColor)>,
+    mut volume_bar_color: Query<&mut TextColor, (With<VolumeBar>, Without<BindingLabel>)>,
 ) {
     let Some(cursor) = cursor else { return };
+
+    // Highlight volume bar
+    for mut color in &mut volume_bar_color {
+        *color = if cursor.row == VOLUME_ROW {
+            TextColor(Color::srgb(1.0, 0.9, 0.1))
+        } else {
+            TextColor(Color::srgb(0.8, 0.85, 1.0))
+        };
+    }
+
+    if cursor.row >= VOLUME_ROW {
+        // Deselect all binding labels
+        for (_, mut color) in &mut labels {
+            *color = TextColor(Color::srgb(0.8, 0.8, 0.8));
+        }
+        return;
+    }
+
     let action_at_row = ACTIONS[cursor.row].0;
 
     for (label, mut color) in &mut labels {
@@ -956,48 +972,51 @@ pub fn settings_input(
         return;
     }
 
-    // Volume control: Minus = down, Equal = up (- / +)
-    let vol_changed = if keyboard.just_pressed(KeyCode::Minus) {
-        config.volume = (config.volume - 0.1).clamp(0.0, 1.0);
-        // round to nearest 0.1 to avoid float drift
-        config.volume = (config.volume * 10.0).round() / 10.0;
-        true
-    } else if keyboard.just_pressed(KeyCode::Equal) {
-        config.volume = (config.volume + 0.1).clamp(0.0, 1.0);
-        config.volume = (config.volume * 10.0).round() / 10.0;
-        true
-    } else {
-        false
-    };
-
-    if vol_changed {
-        for mut s in sink.iter_mut() {
-            s.set_volume(Volume::Linear(config.volume));
-        }
-        for mut text in &mut volume_bar {
-            **text = volume_bar_str(config.volume);
-        }
-    }
-
-    // Navigation
+    // Navigation: up/down always move between rows
     if keyboard.just_pressed(KeyCode::ArrowUp) && cursor.row > 0 {
         cursor.row -= 1;
     }
-    if keyboard.just_pressed(KeyCode::ArrowDown) && cursor.row < 6 {
+    if keyboard.just_pressed(KeyCode::ArrowDown) && cursor.row < VOLUME_ROW {
         cursor.row += 1;
     }
-    if keyboard.just_pressed(KeyCode::ArrowLeft) {
-        cursor.col = 0;
-    }
-    if keyboard.just_pressed(KeyCode::ArrowRight) {
-        cursor.col = 1;
-    }
 
-    // Enter: start capture
-    if keyboard.just_pressed(KeyCode::Enter) {
-        let player = if cursor.col == 0 { PlayerId::P1 } else { PlayerId::P2 };
-        let action = ACTIONS[cursor.row].0;
-        rebind.pending = Some((player, action));
+    if cursor.row == VOLUME_ROW {
+        // Left/Right adjust volume
+        let vol_changed = if keyboard.just_pressed(KeyCode::ArrowLeft) {
+            config.volume = ((config.volume - 0.1) * 10.0).round() / 10.0;
+            config.volume = config.volume.clamp(0.0, 1.0);
+            true
+        } else if keyboard.just_pressed(KeyCode::ArrowRight) {
+            config.volume = ((config.volume + 0.1) * 10.0).round() / 10.0;
+            config.volume = config.volume.clamp(0.0, 1.0);
+            true
+        } else {
+            false
+        };
+
+        if vol_changed {
+            for mut s in sink.iter_mut() {
+                s.set_volume(Volume::Linear(config.volume));
+            }
+            for mut text in &mut volume_bar {
+                **text = volume_bar_str(config.volume);
+            }
+        }
+    } else {
+        // Left/Right switch P1/P2 column
+        if keyboard.just_pressed(KeyCode::ArrowLeft) {
+            cursor.col = 0;
+        }
+        if keyboard.just_pressed(KeyCode::ArrowRight) {
+            cursor.col = 1;
+        }
+
+        // Enter: start capture
+        if keyboard.just_pressed(KeyCode::Enter) {
+            let player = if cursor.col == 0 { PlayerId::P1 } else { PlayerId::P2 };
+            let action = ACTIONS[cursor.row].0;
+            rebind.pending = Some((player, action));
+        }
     }
 
     // ESC: save and return

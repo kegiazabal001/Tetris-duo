@@ -365,7 +365,7 @@ pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>) {
 
             parent.spawn((
                 StartLevelText,
-                Text::new(format!("Nivel inicio: {:2}  ( [ - ] + )", config.start_level)),
+                Text::new(format!("Nivel inicio: {:2}  ( <- -> )", config.start_level)),
                 TextColor(Color::srgb(0.9, 0.9, 0.5)),
                 TextFont::from_font_size(20.0),
             ));
@@ -389,9 +389,9 @@ pub fn mode_select_level_input(
     mut config: ResMut<AppConfig>,
     mut text_q: Query<&mut Text, With<StartLevelText>>,
 ) {
-    let changed = if keyboard.just_pressed(KeyCode::BracketLeft) {
+    let changed = if keyboard.just_pressed(KeyCode::ArrowLeft) {
         if config.start_level > 1 { config.start_level -= 1; true } else { false }
-    } else if keyboard.just_pressed(KeyCode::BracketRight) {
+    } else if keyboard.just_pressed(KeyCode::ArrowRight) {
         if config.start_level < 15 { config.start_level += 1; true } else { false }
     } else {
         false
@@ -400,7 +400,7 @@ pub fn mode_select_level_input(
     if changed {
         config.save();
         if let Ok(mut text) = text_q.single_mut() {
-            *text = Text::new(format!("Nivel inicio: {:2}  ( [ - ] + )", config.start_level));
+            *text = Text::new(format!("Nivel inicio: {:2}  ( <- -> )", config.start_level));
         }
     }
 }
@@ -860,7 +860,7 @@ pub fn setup_settings(mut commands: Commands, config: Res<AppConfig>) {
                 TextFont::from_font_size(18.0),
             ));
             parent.spawn((
-                Text::new("< / > to adjust volume"),
+                Text::new("- / + to adjust volume"),
                 TextColor(Color::srgb(0.5, 0.5, 0.5)),
                 TextFont::from_font_size(14.0),
             ));
@@ -956,13 +956,13 @@ pub fn settings_input(
         return;
     }
 
-    // Volume control: BracketLeft = down, BracketRight = up
-    let vol_changed = if keyboard.just_pressed(KeyCode::BracketLeft) {
+    // Volume control: Minus = down, Equal = up (- / +)
+    let vol_changed = if keyboard.just_pressed(KeyCode::Minus) {
         config.volume = (config.volume - 0.1).clamp(0.0, 1.0);
         // round to nearest 0.1 to avoid float drift
         config.volume = (config.volume * 10.0).round() / 10.0;
         true
-    } else if keyboard.just_pressed(KeyCode::BracketRight) {
+    } else if keyboard.just_pressed(KeyCode::Equal) {
         config.volume = (config.volume + 0.1).clamp(0.0, 1.0);
         config.volume = (config.volume * 10.0).round() / 10.0;
         true

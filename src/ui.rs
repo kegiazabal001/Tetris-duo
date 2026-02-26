@@ -1001,6 +1001,7 @@ pub fn settings_input(
             for mut text in &mut volume_bar {
                 **text = volume_bar_str(config.volume);
             }
+            config.save();
         }
     } else {
         // Left/Right switch P1/P2 column

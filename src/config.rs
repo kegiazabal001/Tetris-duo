@@ -48,6 +48,7 @@ pub struct HighScores {
 }
 
 fn default_volume() -> f32 { 1.0 }
+fn default_start_level() -> u32 { 1 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Resource)]
 pub struct AppConfig {
@@ -58,6 +59,8 @@ pub struct AppConfig {
     pub volume:             f32,
     #[serde(default)]
     pub volume_before_mute: Option<f32>,
+    #[serde(default = "default_start_level")]
+    pub start_level: u32,
 }
 
 impl Default for AppConfig {
@@ -68,6 +71,7 @@ impl Default for AppConfig {
             high_scores:        HighScores::default(),
             volume:             1.0,
             volume_before_mute: None,
+            start_level:        1,
         }
     }
 }

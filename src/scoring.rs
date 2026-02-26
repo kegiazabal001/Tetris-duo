@@ -50,6 +50,22 @@ pub fn save_high_score(
 }
 
 impl ScoreBoard {
+    /// Non-linear level progression: early levels require fewer lines.
+    /// Thresholds are cumulative lines needed to *reach* each level.
+    pub fn level_from_lines(lines: u32) -> u32 {
+        // Lines to reach levels 1–5: 0, 5, 12, 20, 29
+        const THRESHOLDS: &[u32] = &[0, 5, 12, 20, 29];
+        if lines >= 29 {
+            return 5 + (lines - 29) / 10;
+        }
+        for (i, &threshold) in THRESHOLDS.iter().enumerate().rev() {
+            if lines >= threshold {
+                return (i as u32 + 1).max(1);
+            }
+        }
+        1
+    }
+
     /// Resets the scoreboard to defaults while preserving the all-time high score.
     pub fn reset_preserving_high_score(&mut self) {
         let high_score = self.high_score;
@@ -131,7 +147,7 @@ pub fn update_score(
 
         score.score += base * score.level * btb_mult / 2 + combo_bonus;
         score.lines_cleared += event.count;
-        let new_level = 1 + score.lines_cleared / 10;
+        let new_level = ScoreBoard::level_from_lines(score.lines_cleared);
         if new_level > score.level {
             score.level = new_level;
             ev_level_up.write(LevelUpEvent { new_level });
@@ -182,7 +198,7 @@ mod tests {
             let combo_bonus = if sb.combo > 0 { 50 * sb.combo as u32 * sb.level } else { 0 };
             sb.score += base * sb.level * btb / 2 + combo_bonus;
             sb.lines_cleared += ev.count;
-            sb.level = 1 + sb.lines_cleared / 10;
+            sb.level = ScoreBoard::level_from_lines(sb.lines_cleared);
         }
         sb.score
     }
@@ -229,19 +245,24 @@ mod tests {
     }
 
     #[test]
-    fn level_advances_every_10_lines() {
-        // 10 single-line clears → level becomes 2 after the 10th
-        let mut sb = ScoreBoard::default();
-        for _ in 0..10 {
-            sb.lines_cleared += 1;
-            sb.level = 1 + sb.lines_cleared / 10;
-        }
-        assert_eq!(sb.level, 2);
-        for _ in 0..10 {
-            sb.lines_cleared += 1;
-            sb.level = 1 + sb.lines_cleared / 10;
-        }
-        assert_eq!(sb.level, 3);
+    fn test_level_from_lines_early_curve() {
+        assert_eq!(ScoreBoard::level_from_lines(0), 1);
+        assert_eq!(ScoreBoard::level_from_lines(4), 1);
+        assert_eq!(ScoreBoard::level_from_lines(5), 2);
+        assert_eq!(ScoreBoard::level_from_lines(11), 2);
+        assert_eq!(ScoreBoard::level_from_lines(12), 3);
+        assert_eq!(ScoreBoard::level_from_lines(19), 3);
+        assert_eq!(ScoreBoard::level_from_lines(20), 4);
+        assert_eq!(ScoreBoard::level_from_lines(28), 4);
+        assert_eq!(ScoreBoard::level_from_lines(29), 5);
+    }
+
+    #[test]
+    fn test_level_from_lines_late_curve() {
+        // Level 5+: every 10 lines above 29
+        assert_eq!(ScoreBoard::level_from_lines(39), 6);
+        assert_eq!(ScoreBoard::level_from_lines(49), 7);
+        assert_eq!(ScoreBoard::level_from_lines(38), 5);
     }
 
     #[test]

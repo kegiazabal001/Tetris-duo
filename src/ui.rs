@@ -6,8 +6,9 @@ use crate::modes::{ModeTimer, SPRINT_GOAL, ULTRA_DURATION};
 use crate::scoring::ScoreBoard;
 use crate::state::{GameState, QuitToMenu, SelectedMode};
 
-fn reset_game(score: &mut ScoreBoard, board: &mut Board) {
+fn reset_game(score: &mut ScoreBoard, board: &mut Board, start_level: u32) {
     score.reset_preserving_high_score();
+    score.level = start_level.max(1);
     *board = Board::default();
 }
 
@@ -311,6 +312,9 @@ pub fn menu_input(
 #[derive(Component)]
 pub struct ModeSelectRoot;
 
+#[derive(Component)]
+pub struct StartLevelText;
+
 pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>) {
     let endless_best = format!("Best: {} pts", fmt_score(config.high_scores.endless));
     let sprint_best = match config.high_scores.sprint_best {
@@ -360,6 +364,13 @@ pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>) {
             ));
 
             parent.spawn((
+                StartLevelText,
+                Text::new(format!("Nivel inicio: {:2}  ( [ - ] + )", config.start_level)),
+                TextColor(Color::srgb(0.9, 0.9, 0.5)),
+                TextFont::from_font_size(20.0),
+            ));
+
+            parent.spawn((
                 Text::new("S - Settings"),
                 TextColor(Color::srgb(0.6, 0.6, 0.6)),
                 TextFont::from_font_size(18.0),
@@ -373,24 +384,46 @@ pub fn despawn_mode_select(mut commands: Commands, query: Query<Entity, With<Mod
     }
 }
 
+pub fn mode_select_level_input(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut config: ResMut<AppConfig>,
+    mut text_q: Query<&mut Text, With<StartLevelText>>,
+) {
+    let changed = if keyboard.just_pressed(KeyCode::BracketLeft) {
+        if config.start_level > 1 { config.start_level -= 1; true } else { false }
+    } else if keyboard.just_pressed(KeyCode::BracketRight) {
+        if config.start_level < 15 { config.start_level += 1; true } else { false }
+    } else {
+        false
+    };
+
+    if changed {
+        config.save();
+        if let Ok(mut text) = text_q.single_mut() {
+            *text = Text::new(format!("Nivel inicio: {:2}  ( [ - ] + )", config.start_level));
+        }
+    }
+}
+
 pub fn mode_select_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut next_state: ResMut<NextState<GameState>>,
     mut selected_mode: ResMut<SelectedMode>,
     mut score: ResMut<ScoreBoard>,
     mut board: ResMut<Board>,
+    config: Res<AppConfig>,
 ) {
     if keyboard.just_pressed(KeyCode::Digit1) {
         *selected_mode = SelectedMode::Endless;
-        reset_game(&mut score, &mut board);
+        reset_game(&mut score, &mut board, config.start_level);
         next_state.set(GameState::Playing);
     } else if keyboard.just_pressed(KeyCode::Digit2) {
         *selected_mode = SelectedMode::Sprint;
-        reset_game(&mut score, &mut board);
+        reset_game(&mut score, &mut board, config.start_level);
         next_state.set(GameState::Playing);
     } else if keyboard.just_pressed(KeyCode::Digit3) {
         *selected_mode = SelectedMode::Ultra;
-        reset_game(&mut score, &mut board);
+        reset_game(&mut score, &mut board, config.start_level);
         next_state.set(GameState::Playing);
     } else if keyboard.just_pressed(KeyCode::KeyS) {
         next_state.set(GameState::Settings);
@@ -552,7 +585,7 @@ pub fn game_over_input(
     mut board: ResMut<Board>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
-        reset_game(&mut score, &mut board);
+        reset_game(&mut score, &mut board, 1);
         next_state.set(GameState::ModeSelect);
     }
 }
@@ -634,7 +667,7 @@ pub fn sprint_complete_input(
     mut board: ResMut<Board>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
-        reset_game(&mut score, &mut board);
+        reset_game(&mut score, &mut board, 1);
         next_state.set(GameState::ModeSelect);
     }
 }

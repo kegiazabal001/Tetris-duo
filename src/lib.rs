@@ -53,7 +53,8 @@ impl Plugin for TetrisDuoPlugin {
             .add_systems(OnExit(GameState::ModeSelect), ui::despawn_mode_select)
             .add_systems(
                 Update,
-                ui::mode_select_input.run_if(in_state(GameState::ModeSelect)),
+                (ui::mode_select_input, ui::mode_select_level_input)
+                    .run_if(in_state(GameState::ModeSelect)),
             )
             // Settings
             .add_systems(OnEnter(GameState::Settings), ui::setup_settings)

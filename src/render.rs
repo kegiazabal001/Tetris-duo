@@ -183,18 +183,6 @@ pub fn setup_board_visuals(mut commands: Commands) {
         BoardBackdrop,
     ));
 
-    // Divider between P1 and P2 zones (column 9 of 18)
-    let divider_x = BOARD_OFFSET_X + 9.0 * CELL_SIZE;
-    commands.spawn((
-        Sprite {
-            color: Color::srgba(1.0, 1.0, 1.0, 0.12),
-            custom_size: Some(Vec2::new(2.0, board_h)),
-            ..default()
-        },
-        Transform::from_translation(Vec3::new(divider_x, 0.0, 0.5)),
-        BoardBackdrop,
-    ));
-
     // Board cell grid
     for row in 0..VISIBLE_ROWS {
         for col in 0..COLS {

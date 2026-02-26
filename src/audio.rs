@@ -33,7 +33,7 @@ pub fn load_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
         tetris: asset_server.load("audio/tetris.ogg"),
         level_up: asset_server.load("audio/level_up.ogg"),
         game_over: asset_server.load("audio/game_over.ogg"),
-        music: asset_server.load("audio/Casual_8bit.ogg"),
+        music: asset_server.load("audio/retro_menu_groove.ogg"),
     });
 }
 

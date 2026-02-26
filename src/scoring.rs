@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::config::AppConfig;
 use crate::piece::TSpinType;
-use crate::player::{GameOverEvent, LinesCleared};
+use crate::player::LinesCleared;
 use crate::state::SelectedMode;
 
 #[derive(Event)]
@@ -40,12 +40,9 @@ pub fn save_high_score(
     mut score: ResMut<ScoreBoard>,
     mut config: ResMut<AppConfig>,
     mode: Res<SelectedMode>,
-    mut ev: EventReader<GameOverEvent>,
 ) {
-    for _ in ev.read() {
-        if *mode == SelectedMode::Endless && config.try_update_endless(score.score) {
-            score.high_score = score.score;
-        }
+    if *mode == SelectedMode::Endless && config.try_update_endless(score.score) {
+        score.high_score = score.score;
     }
 }
 

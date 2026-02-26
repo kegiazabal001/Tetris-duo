@@ -995,4 +995,5 @@ pub fn global_mute_input(
     for mut s in sink.iter_mut() {
         s.set_volume(Volume::Linear(config.volume));
     }
+    config.save();
 }

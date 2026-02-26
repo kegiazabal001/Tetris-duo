@@ -346,7 +346,7 @@ pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>) {
 
             // Endless
             parent.spawn((
-                Text::new(format!("1  ENDLESS  -  {endless_best}")),
+                Text::new(format!("1  CLASIC  -  {endless_best}")),
                 TextColor(Color::srgb(0.6, 0.9, 1.0)),
                 TextFont::from_font_size(24.0),
             ));

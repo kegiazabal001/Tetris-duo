@@ -419,7 +419,17 @@ pub fn lock_piece(
     mut ev_lines: EventWriter<LinesCleared>,
     chaos: Option<Res<ChaosState>>,
 ) {
+    // Snapshot all positions before any mutation so spawn-collision checks are stable.
+    let pre_positions: Vec<(PlayerId, PiecePos)> = players
+        .iter()
+        .map(|(piece, _)| (piece.player, piece.to_piece_pos()))
+        .collect();
+
     for event in ev_lock.read() {
+        let other_pos = pre_positions.iter()
+            .find(|(pid, _)| *pid != event.player)
+            .map(|(_, pos)| *pos);
+
         for (mut piece, mut bag) in &mut players {
             if piece.player != event.player {
                 continue;
@@ -452,6 +462,22 @@ pub fn lock_piece(
             let hold = piece.hold;
             *piece = fresh_piece(piece.player, next_kind, chaos.as_deref());
             piece.hold = hold; // preserve held piece across locks
+
+            // After chaos-swap transitions both players can end up on the same side,
+            // causing the spawn position to collide with the other player's active piece.
+            // Try lateral shifts until we find a free column (board-only check handles
+            // the real stack-overflow game over via check_game_over).
+            if let Some(other) = other_pos {
+                if !piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row, Some(other)) {
+                    for shift in [1i32, -1, 2, -2, 3, -3, 4, -4] {
+                        let nc = piece.col + shift;
+                        if piece_fits(&board, piece.kind, piece.rotation, nc, piece.row, Some(other)) {
+                            piece.col = nc;
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -7,6 +7,7 @@ use crate::piece::TSpinType;
 use crate::collision::PiecePos;
 use crate::player::{ActivePiece, LinesCleared, PieceBag, PieceLocked, PlayerId};
 use crate::scoring::{LevelUpEvent, ScoreBoard};
+use crate::state::ChaosState;
 
 pub use crate::constants::CELL_SIZE;
 pub const BOARD_OFFSET_X: f32 = -(COLS as f32 * CELL_SIZE) / 2.0;
@@ -23,6 +24,13 @@ const NEXT_PREVIEW_SLOT_H: f32 = 70.0;
 pub use crate::constants::{LINE_CLEAR_FLASH_DURATION, LOCK_FLASH_DURATION};
 
 // ── Color helpers ─────────────────────────────────────────────────────────────
+
+fn to_grayscale(color: Color) -> Color {
+    let s = color.to_srgba();
+    let l = s.red * 0.299 + s.green * 0.587 + s.blue * 0.114;
+    Color::srgb(l, l, l)
+}
+
 
 /// Tetris Guideline vivid colors (P1).
 fn kind_color_vivid(kind: TetrominoKind) -> Color {
@@ -308,8 +316,10 @@ pub fn sync_board_cells(
     board: Res<Board>,
     flash: Res<LineClearFlash>,
     lock_flash: Res<PieceLockFlash>,
+    chaos: Option<Res<ChaosState>>,
     mut query: Query<(&BoardCellSprite, &mut Sprite)>,
 ) {
+    let bw = chaos.as_ref().map_or(false, |c| c.swap_active);
     let flash_t = if flash.timer > 0.0 {
         flash.timer / LINE_CLEAR_FLASH_DURATION
     } else {
@@ -330,8 +340,11 @@ pub fn sync_board_cells(
 
     for (cell, mut sprite) in &mut query {
         let base = match board.cells[cell.row][cell.col] {
-            Some(pc) => color_for(pc),
-            None => Color::srgb(0.12, 0.12, 0.15),
+            Some(pc) => {
+                let c = color_for(pc);
+                if bw { to_grayscale(c) } else { c }
+            }
+            None => if bw { Color::srgb(0.05, 0.05, 0.05) } else { Color::srgb(0.12, 0.12, 0.15) },
         };
         let after_line_flash = if pulse > 0.0 && flash.pending_rows.contains(&cell.row) {
             let srgba = base.to_srgba();
@@ -390,8 +403,10 @@ pub fn tick_flash_timer(
 /// Sync active piece sprites.
 pub fn sync_active_pieces(
     players: Query<&ActivePiece>,
+    chaos: Option<Res<ChaosState>>,
     mut blocks: Query<(&ActiveBlockSprite, &mut Transform, &mut Sprite)>,
 ) {
+    let bw = chaos.as_ref().map_or(false, |c| c.swap_active);
     for (block, mut tf, mut sprite) in &mut blocks {
         let Some(piece) = players.iter().find(|p| p.player == block.player) else {
             tf.translation.y = -1000.0;
@@ -402,7 +417,8 @@ pub fn sync_active_pieces(
         if cy < VISIBLE_ROWS as i32 && cy >= 0 && cx >= 0 && cx < COLS as i32 {
             tf.translation = cell_pos(cx as usize, cy as usize);
             tf.translation.z = 2.0;
-            sprite.color = active_color(piece.player, piece.kind);
+            let c = active_color(piece.player, piece.kind);
+            sprite.color = if bw { to_grayscale(c) } else { c };
         } else {
             tf.translation.y = -1000.0;
         }
@@ -413,8 +429,10 @@ pub fn sync_active_pieces(
 pub fn sync_ghost_pieces(
     players: Query<&ActivePiece>,
     board: Res<Board>,
+    chaos: Option<Res<ChaosState>>,
     mut ghosts: Query<(&GhostBlockSprite, &mut Transform, &mut Sprite)>,
 ) {
+    let bw = chaos.as_ref().map_or(false, |c| c.swap_active);
     // Collect minimal snapshots — no heap allocation, no full ActivePiece clone.
     let snapshots: [Option<(PlayerId, PiecePos)>; 2] = {
         let mut it = players.iter();
@@ -441,7 +459,8 @@ pub fn sync_ghost_pieces(
         if cy < VISIBLE_ROWS as i32 && cy >= 0 && cx >= 0 && cx < COLS as i32 {
             tf.translation = cell_pos(cx as usize, cy as usize);
             tf.translation.z = 1.0;
-            sprite.color = ghost_color(*player, pos.kind);
+            let c = ghost_color(*player, pos.kind);
+            sprite.color = if bw { to_grayscale(c) } else { c };
         } else {
             tf.translation.y = -1000.0;
         }
@@ -451,6 +470,7 @@ pub fn sync_ghost_pieces(
 /// Sync next-piece and hold-piece preview sprites.
 pub fn sync_preview_pieces(
     players: Query<(&ActivePiece, &PieceBag)>,
+    chaos: Option<Res<ChaosState>>,
     mut next_blocks: Query<
         (&NextPieceBlock, &mut Transform, &mut Sprite),
         Without<HoldPieceBlock>,
@@ -460,6 +480,7 @@ pub fn sync_preview_pieces(
         Without<NextPieceBlock>,
     >,
 ) {
+    let bw = chaos.as_ref().map_or(false, |c| c.swap_active);
     for (block, mut tf, mut sprite) in &mut next_blocks {
         let panel_x = if block.player == PlayerId::P1 { P1_PANEL_X } else { P2_PANEL_X };
         let Some((piece, bag)) = players.iter().find(|(p, _)| p.player == block.player) else {
@@ -475,7 +496,8 @@ pub fn sync_preview_pieces(
         let kind = preview[block.slot];
         let slot_y = NEXT_PREVIEW_Y - block.slot as f32 * NEXT_PREVIEW_SLOT_H;
         tf.translation = preview_block_pos(panel_x, slot_y, kind, block.index);
-        sprite.color = active_color(piece.player, kind);
+        let c = active_color(piece.player, kind);
+        sprite.color = if bw { to_grayscale(c) } else { c };
     }
 
     for (block, mut tf, mut sprite) in &mut hold_blocks {
@@ -487,7 +509,9 @@ pub fn sync_preview_pieces(
         match piece.hold {
             Some(kind) => {
                 tf.translation = preview_block_pos(panel_x, HOLD_PREVIEW_Y, kind, block.index);
-                let mut col = active_color(piece.player, kind).to_srgba();
+                let base = active_color(piece.player, kind);
+                let base = if bw { to_grayscale(base) } else { base };
+                let mut col = base.to_srgba();
                 // Dim the hold piece if hold is locked for this turn
                 if piece.hold_used {
                     col.red *= 0.5;

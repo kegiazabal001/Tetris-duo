@@ -60,8 +60,12 @@ fn color_for(pc: PieceColor) -> Color {
     match pc {
         PieceColor::Player1(k) => kind_color_vivid(k),
         PieceColor::Player2(k) => kind_color_pastel(k),
+        PieceColor::Anchor => Color::srgb(0.13, 0.08, 0.20), // dark obsidian
     }
 }
+
+/// Obsidian color for anchor pieces (active/ghost).
+fn anchor_color() -> Color { Color::srgb(0.13, 0.08, 0.20) }
 
 fn active_color(player: PlayerId, kind: TetrominoKind) -> Color {
     match player {
@@ -418,7 +422,7 @@ pub fn sync_active_pieces(
         if cy < VISIBLE_ROWS as i32 && cy >= 0 && cx >= 0 && cx < COLS as i32 {
             tf.translation = cell_pos(cx as usize, cy as usize);
             tf.translation.z = 2.0;
-            let c = active_color(piece.player, piece.kind);
+            let c = if piece.is_anchor { anchor_color() } else { active_color(piece.player, piece.kind) };
             sprite.color = if bw { to_grayscale(c) } else { c };
         } else {
             tf.translation.y = -1000.0;
@@ -460,7 +464,13 @@ pub fn sync_ghost_pieces(
         if cy < VISIBLE_ROWS as i32 && cy >= 0 && cx >= 0 && cx < COLS as i32 {
             tf.translation = cell_pos(cx as usize, cy as usize);
             tf.translation.z = 1.0;
-            let c = ghost_color(*player, pos.kind);
+            let is_anchor = players.iter().find(|p| p.player == *player).map_or(false, |p| p.is_anchor);
+            let c = if is_anchor {
+                let a = anchor_color().to_srgba();
+                Color::srgba(a.red, a.green, a.blue, 0.22)
+            } else {
+                ghost_color(*player, pos.kind)
+            };
             sprite.color = if bw { to_grayscale(c) } else { c };
         } else {
             tf.translation.y = -1000.0;

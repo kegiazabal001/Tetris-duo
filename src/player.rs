@@ -60,6 +60,8 @@ pub struct ActivePiece {
     pub arr_right: f32,
     /// Prevents check_lock from emitting PieceLocked more than once per piece.
     pub locked: bool,
+    /// True if this piece is an anchor — will survive line clears permanently.
+    pub is_anchor: bool,
 }
 
 /// 7-bag randomizer per player.
@@ -178,6 +180,7 @@ fn fresh_piece(player: PlayerId, kind: TetrominoKind, chaos: Option<&ChaosState>
         arr_left: 0.0,
         arr_right: 0.0,
         locked: false,
+        is_anchor: false,
     }
 }
 
@@ -443,9 +446,13 @@ pub fn lock_piece(
             };
 
             // Write cells to board with per-piece color
-            let cell_color = match piece.player {
-                PlayerId::P1 => PieceColor::Player1(piece.kind),
-                PlayerId::P2 => PieceColor::Player2(piece.kind),
+            let cell_color = if piece.is_anchor {
+                PieceColor::Anchor
+            } else {
+                match piece.player {
+                    PlayerId::P1 => PieceColor::Player1(piece.kind),
+                    PlayerId::P2 => PieceColor::Player2(piece.kind),
+                }
             };
             for (cx, cy) in collision::absolute_cells(piece.kind, piece.rotation, piece.col, piece.row) {
                 board.set(cx, cy, cell_color);
@@ -462,6 +469,10 @@ pub fn lock_piece(
             let hold = piece.hold;
             *piece = fresh_piece(piece.player, next_kind, chaos.as_deref());
             piece.hold = hold; // preserve held piece across locks
+            // In Chaos mode, 1-in-40 chance the new piece is an anchor
+            if chaos.is_some() && rand::random::<f32>() < 1.0 / 40.0 {
+                piece.is_anchor = true;
+            }
 
             // After chaos-swap transitions both players can end up on the same side,
             // causing the spawn position to collide with the other player's active piece.
@@ -506,6 +517,7 @@ mod tests {
             arr_left: 0.0,
             arr_right: 0.0,
             locked: false,
+            is_anchor: false,
         }
     }
 

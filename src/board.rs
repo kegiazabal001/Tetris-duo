@@ -12,16 +12,22 @@ pub const VISIBLE_ROWS: usize = 20;
 pub enum PieceColor {
     Player1(TetrominoKind),
     Player2(TetrominoKind),
+    /// Anchor piece — stays in the board permanently (survives line clears).
+    Anchor,
 }
 
 impl PieceColor {
     pub fn kind(self) -> TetrominoKind {
         match self {
             PieceColor::Player1(k) | PieceColor::Player2(k) => k,
+            PieceColor::Anchor => TetrominoKind::I, // fallback, unused visually
         }
     }
     pub fn is_player1(self) -> bool {
         matches!(self, PieceColor::Player1(_))
+    }
+    pub fn is_anchor(self) -> bool {
+        matches!(self, PieceColor::Anchor)
     }
 }
 
@@ -89,8 +95,22 @@ impl Board {
     }
 
     /// Removes the specified rows and compacts the board downward.
+    /// Anchor cells in cleared rows are preserved: they are re-inserted at their
+    /// adjusted position after compaction, then settled by `apply_anchor_gravity`.
     /// Call this after the line-clear animation finishes.
     pub fn remove_rows(&mut self, rows: &[usize]) {
+        // 1. Collect anchor cells inside the cleared rows (before we touch anything).
+        let mut saved_anchors: Vec<(usize, usize)> = Vec::new(); // (orig_row, col)
+        for &r in rows {
+            for c in 0..COLS {
+                if matches!(self.cells[r][c], Some(PieceColor::Anchor)) {
+                    saved_anchors.push((r, c));
+                    self.cells[r][c] = None; // temporarily clear so compaction works cleanly
+                }
+            }
+        }
+
+        // 2. Standard compaction: skip the cleared rows.
         let mut write = 0usize;
         for read in 0..ROWS {
             if !rows.contains(&read) {
@@ -102,6 +122,43 @@ impl Board {
         }
         for row in write..ROWS {
             self.cells[row] = [None; COLS];
+        }
+
+        // 3. Re-insert each anchor at its adjusted row (shift down by however many
+        //    cleared rows were at or below it, then let gravity settle the rest).
+        for (orig_row, col) in saved_anchors {
+            let shift = rows.iter().filter(|&&r| r <= orig_row).count();
+            let new_row = orig_row.saturating_sub(shift);
+            // Place only if the target cell is empty (another anchor may already be here).
+            if self.cells[new_row][col].is_none() {
+                self.cells[new_row][col] = Some(PieceColor::Anchor);
+            }
+        }
+
+        // 4. Settle any anchors that are now floating above empty cells.
+        self.apply_anchor_gravity();
+    }
+
+    /// Drops every anchor cell one step at a time until all anchors rest on
+    /// a filled cell or the board floor.
+    pub fn apply_anchor_gravity(&mut self) {
+        loop {
+            let mut moved = false;
+            // Iterate from row 1 upward so an anchor can fall multiple rows per call.
+            for row in 1..ROWS {
+                for col in 0..COLS {
+                    if matches!(self.cells[row][col], Some(PieceColor::Anchor))
+                        && self.cells[row - 1][col].is_none()
+                    {
+                        self.cells[row - 1][col] = Some(PieceColor::Anchor);
+                        self.cells[row][col] = None;
+                        moved = true;
+                    }
+                }
+            }
+            if !moved {
+                break;
+            }
         }
     }
 }

@@ -28,7 +28,7 @@ pub use crate::constants::{LINE_CLEAR_FLASH_DURATION, LOCK_FLASH_DURATION};
 fn to_grayscale(color: Color) -> Color {
     let s = color.to_srgba();
     let l = s.red * 0.299 + s.green * 0.587 + s.blue * 0.114;
-    Color::srgb(l, l, l)
+    Color::srgba(l, l, l, s.alpha)
 }
 
 

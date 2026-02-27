@@ -60,15 +60,15 @@ fn color_for(pc: PieceColor) -> Color {
     match pc {
         PieceColor::Player1(k) => kind_color_vivid(k),
         PieceColor::Player2(k) => kind_color_pastel(k),
-        PieceColor::Anchor => Color::srgb(0.13, 0.08, 0.20), // dark obsidian
+        PieceColor::Anchor => anchor_color(),
     }
 }
 
-/// Obsidian color for anchor pieces (active/ghost), normal mode.
-fn anchor_color() -> Color { Color::srgb(0.13, 0.08, 0.20) }
+/// Bright gold for anchor pieces — clearly visible on dark backgrounds, distinct from all tetromino colors.
+fn anchor_color() -> Color { Color::srgb(1.0, 0.82, 0.05) }
 
-/// Quartz-white color for anchor pieces during B&W blackout — ensures high contrast.
-fn anchor_color_bw() -> Color { Color::srgb(0.92, 0.90, 0.95) }
+/// Same gold in B&W blackout — saturated yellow contrasts well against the white board too.
+fn anchor_color_bw() -> Color { anchor_color() }
 
 fn active_color(player: PlayerId, kind: TetrominoKind) -> Color {
     match player {

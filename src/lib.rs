@@ -18,7 +18,7 @@ use leafwing_input_manager::prelude::*;
 use crate::config::AppConfig;
 use crate::input::PieceAction;
 use crate::player::InputGrace;
-use crate::state::{GameState, QuitToMenu, RebindTarget, SelectedMode};
+use crate::state::{ChaosState, GameState, QuitToMenu, RebindTarget, SelectedMode};
 
 pub struct TetrisDuoPlugin;
 
@@ -36,6 +36,7 @@ impl Plugin for TetrisDuoPlugin {
             .init_resource::<SelectedMode>()
             .init_resource::<RebindTarget>()
             .init_resource::<modes::ModeTimer>()
+            .init_resource::<ChaosState>()
             .init_resource::<audio::AudioAssets>()
             .add_event::<player::PieceLocked>()
             .add_event::<player::LinesCleared>()
@@ -80,6 +81,7 @@ impl Plugin for TetrisDuoPlugin {
                     audio::stop_bg_music,
                     audio::start_game_music,
                     modes::start_mode_timer,
+                    modes::reset_chaos_state,
                     player::spawn_players,
                     render::setup_board_visuals,
                     ui::setup_hud,
@@ -100,6 +102,7 @@ impl Plugin for TetrisDuoPlugin {
                         player::check_lock,
                         render::on_piece_locked,
                         player::lock_piece,
+                        modes::on_piece_locked_chaos,
                         scoring::update_score,
                         render::on_lines_cleared,
                         render::spawn_popups,
@@ -112,6 +115,7 @@ impl Plugin for TetrisDuoPlugin {
                         audio::play_game_over_sound,
                         player::check_game_over,
                         modes::tick_mode_timer,
+                        modes::tick_chaos,
                         modes::check_sprint_complete,
                         modes::check_ultra_timeout,
                         render::sync_board_cells,
@@ -122,6 +126,7 @@ impl Plugin for TetrisDuoPlugin {
                         render::tick_flash_timer,
                         render::tick_lock_flash,
                         render::tick_popups,
+                        render::sync_blackout_overlay,
                     ),
                 )
                     .chain()
@@ -137,7 +142,7 @@ impl Plugin for TetrisDuoPlugin {
             // Game Over
             .add_systems(
                 OnEnter(GameState::GameOver),
-                (modes::save_ultra_score, scoring::save_high_score, ui::setup_game_over, audio::start_bg_music),
+                (modes::save_ultra_score, modes::save_chaos_score, scoring::save_high_score, ui::setup_game_over, audio::start_bg_music),
             )
             .add_systems(OnExit(GameState::GameOver), ui::despawn_game_over)
             .add_systems(
@@ -174,6 +179,7 @@ fn cleanup_on_quit(
             With<render::NextPieceBlock>,
             With<render::HoldPieceBlock>,
             With<render::PopupText>,
+            With<render::BlackoutOverlay>,
         )>,
     >,
     hud: Query<Entity, With<ui::HudRoot>>,

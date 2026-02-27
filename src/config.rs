@@ -45,6 +45,8 @@ pub struct HighScores {
     pub endless:     u32,
     pub sprint_best: Option<f32>,
     pub ultra_best:  u32,
+    #[serde(default)]
+    pub chaos_best:  u32,
 }
 
 fn default_volume() -> f32 { 0.6 }
@@ -128,6 +130,17 @@ impl AppConfig {
     pub fn try_update_ultra(&mut self, score: u32) -> bool {
         if score > self.high_scores.ultra_best {
             self.high_scores.ultra_best = score;
+            self.save();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Compares `score` against the stored chaos best; saves and returns true if it is new.
+    pub fn try_update_chaos(&mut self, score: u32) -> bool {
+        if score > self.high_scores.chaos_best {
+            self.high_scores.chaos_best = score;
             self.save();
             true
         } else {

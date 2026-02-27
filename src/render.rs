@@ -7,6 +7,7 @@ use crate::piece::TSpinType;
 use crate::collision::PiecePos;
 use crate::player::{ActivePiece, LinesCleared, PieceBag, PieceLocked, PlayerId};
 use crate::scoring::{LevelUpEvent, ScoreBoard};
+use crate::state::ChaosState;
 
 pub use crate::constants::CELL_SIZE;
 pub const BOARD_OFFSET_X: f32 = -(COLS as f32 * CELL_SIZE) / 2.0;
@@ -125,6 +126,10 @@ pub struct HoldPieceBlock {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Marker for the full-screen grayscale overlay spawned during a BLACKOUT event.
+#[derive(Component)]
+pub struct BlackoutOverlay;
 
 fn cell_pos(col: usize, row: usize) -> Vec3 {
     Vec3::new(
@@ -288,6 +293,7 @@ pub fn despawn_board_visuals(
     q5: Query<Entity, With<NextPieceBlock>>,
     q6: Query<Entity, With<HoldPieceBlock>>,
     q7: Query<Entity, With<PopupText>>,
+    q8: Query<Entity, With<BlackoutOverlay>>,
 ) {
     for e in q1.iter()
         .chain(q2.iter())
@@ -296,6 +302,7 @@ pub fn despawn_board_visuals(
         .chain(q5.iter())
         .chain(q6.iter())
         .chain(q7.iter())
+        .chain(q8.iter())
     {
         commands.entity(e).despawn();
     }
@@ -604,5 +611,31 @@ pub fn tick_popups(
             1.0
         };
         color.0 = Color::srgba(1.0, 1.0, 1.0, alpha);
+    }
+}
+
+/// Spawns or despawns the full-screen blackout overlay based on ChaosState.
+pub fn sync_blackout_overlay(
+    mut commands: Commands,
+    chaos:      Option<Res<ChaosState>>,
+    overlay_q:  Query<Entity, With<BlackoutOverlay>>,
+) {
+    let blackout_active = chaos.as_ref().map_or(false, |cs| cs.blackout_active);
+    let overlay_exists  = !overlay_q.is_empty();
+
+    if blackout_active && !overlay_exists {
+        commands.spawn((
+            Sprite {
+                color: Color::srgba(0.0, 0.0, 0.0, 0.82),
+                custom_size: Some(Vec2::new(10000.0, 10000.0)),
+                ..default()
+            },
+            Transform::from_xyz(0.0, 0.0, 50.0),
+            BlackoutOverlay,
+        ));
+    } else if !blackout_active && overlay_exists {
+        for e in &overlay_q {
+            commands.entity(e).despawn();
+        }
     }
 }

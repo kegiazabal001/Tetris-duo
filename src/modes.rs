@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 
 use crate::config::AppConfig;
+use crate::player::{PieceLocked, PlayerId};
 use crate::scoring::ScoreBoard;
-use crate::state::{GameState, SelectedMode};
+use crate::state::{ChaosState, GameState, SelectedMode, CHAOS_PIECE_THRESHOLD};
 
 pub use crate::constants::{SPRINT_GOAL, ULTRA_DURATION};
 
@@ -53,6 +54,74 @@ pub fn check_ultra_timeout(
     if *mode == SelectedMode::Ultra && timer.elapsed >= ULTRA_DURATION {
         next_state.set(GameState::GameOver);
     }
+}
+
+/// Resets ChaosState at the start of each game session.
+pub fn reset_chaos_state(mut cs: ResMut<ChaosState>) {
+    *cs = ChaosState::default();
+}
+
+/// Ticks chaos timers and resolves event completion every frame.
+pub fn tick_chaos(
+    time: Res<Time>,
+    mode: Res<SelectedMode>,
+    mut cs: ResMut<ChaosState>,
+) {
+    if *mode != SelectedMode::Chaos { return; }
+    if cs.active_event.is_none() { return; }
+
+    let dt = time.delta_secs();
+
+    if cs.blackout_active {
+        cs.blackout_timer -= dt;
+        if cs.blackout_timer <= 0.0 {
+            cs.blackout_timer  = 0.0;
+            cs.blackout_active = false;
+        }
+    }
+
+    if cs.swap_active && cs.swap_p1_remaining == 0 && cs.swap_p2_remaining == 0 {
+        cs.swap_active = false;
+    }
+
+    // Event fully over when both swap and blackout are done
+    if !cs.swap_active && !cs.blackout_active {
+        cs.active_event             = None;
+        cs.pieces_since_last_event  = 0;
+    }
+}
+
+/// Reacts to piece-lock events to drive the chaos event counter and swap tracking.
+pub fn on_piece_locked_chaos(
+    mode:    Res<SelectedMode>,
+    mut cs:  ResMut<ChaosState>,
+    mut ev:  EventReader<PieceLocked>,
+) {
+    if *mode != SelectedMode::Chaos { return; }
+
+    for event in ev.read() {
+        if cs.active_event.is_some() {
+            match event.player {
+                PlayerId::P1 => { if cs.swap_p1_remaining > 0 { cs.swap_p1_remaining -= 1; } }
+                PlayerId::P2 => { if cs.swap_p2_remaining > 0 { cs.swap_p2_remaining -= 1; } }
+            }
+        } else {
+            cs.pieces_since_last_event += 1;
+            if cs.pieces_since_last_event >= CHAOS_PIECE_THRESHOLD {
+                cs.trigger_next_event();
+            }
+        }
+    }
+}
+
+/// Saves Chaos best score when GameOver is entered in Chaos mode.
+pub fn save_chaos_score(
+    mode:       Res<SelectedMode>,
+    score:      Res<ScoreBoard>,
+    mut config: ResMut<AppConfig>,
+) {
+    if *mode != SelectedMode::Chaos { return; }
+    config.try_update_chaos(score.score);
 }
 
 #[cfg(test)]

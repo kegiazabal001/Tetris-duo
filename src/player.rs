@@ -12,6 +12,7 @@ use crate::config::AppConfig;
 use crate::input::{input_map_for, PieceAction};
 use crate::piece::{Rotation, TSpinType, TetrominoKind};
 use crate::constants::{ARR_RATE, DAS_DELAY, LOCK_DELAY};
+use crate::state::ChaosState;
 use crate::scoring::ScoreBoard;
 use crate::state::GameState;
 
@@ -152,12 +153,19 @@ impl ActivePiece {
     }
 }
 
-fn fresh_piece(player: PlayerId, kind: TetrominoKind) -> ActivePiece {
+fn fresh_piece(player: PlayerId, kind: TetrominoKind, chaos: Option<&ChaosState>) -> ActivePiece {
+    let col = match chaos {
+        Some(cs) if cs.swap_active => match player {
+            PlayerId::P1 => PlayerId::P2.spawn_col(),
+            PlayerId::P2 => PlayerId::P1.spawn_col(),
+        },
+        _ => player.spawn_col(),
+    };
     ActivePiece {
         player,
         kind,
         rotation: Rotation::R0,
-        col: player.spawn_col(),
+        col,
         row: VISIBLE_ROWS as i32 - 2,
         gravity_timer: 0.0,
         lock_timer: None,
@@ -214,7 +222,7 @@ pub fn spawn_players(mut commands: Commands, config: Res<AppConfig>) {
         let mut bag = PieceBag::new(player);
         let kind = bag.pop();
         commands.spawn((
-            fresh_piece(player, kind),
+            fresh_piece(player, kind, None),
             bag,
             input_map_for(player, &config),
             ActionState::<PieceAction>::default(),
@@ -237,6 +245,7 @@ pub fn handle_input(
     mut ev_rotate: EventWriter<PieceRotated>,
     mut grace: ResMut<InputGrace>,
     keyboard: Res<ButtonInput<KeyCode>>,
+    chaos: Option<Res<ChaosState>>,
 ) {
     if grace.0 {
         // Block until the hard-drop keys are physically released. We check Bevy's raw
@@ -265,7 +274,7 @@ pub fn handle_input(
                 None => bag.pop(),
             };
             let held_kind = piece.kind;
-            *piece = fresh_piece(piece.player, new_kind);
+            *piece = fresh_piece(piece.player, new_kind, chaos.as_deref());
             piece.hold = Some(held_kind);
             piece.hold_used = true;
             continue;
@@ -408,6 +417,7 @@ pub fn lock_piece(
     mut players: Query<(&mut ActivePiece, &mut PieceBag)>,
     mut ev_lock: EventReader<PieceLocked>,
     mut ev_lines: EventWriter<LinesCleared>,
+    chaos: Option<Res<ChaosState>>,
 ) {
     for event in ev_lock.read() {
         for (mut piece, mut bag) in &mut players {
@@ -440,7 +450,7 @@ pub fn lock_piece(
             // Spawn next piece
             let next_kind = bag.pop();
             let hold = piece.hold;
-            *piece = fresh_piece(piece.player, next_kind);
+            *piece = fresh_piece(piece.player, next_kind, chaos.as_deref());
             piece.hold = hold; // preserve held piece across locks
         }
     }
@@ -539,13 +549,13 @@ mod tests {
     #[test]
     fn hold_resets_on_new_piece() {
         // fresh_piece always sets hold_used = false
-        let p = fresh_piece(PlayerId::P1, TetrominoKind::S);
+        let p = fresh_piece(PlayerId::P1, TetrominoKind::S, None);
         assert!(!p.hold_used);
     }
 
     #[test]
     fn locked_false_on_new_piece() {
-        let p = fresh_piece(PlayerId::P1, TetrominoKind::I);
+        let p = fresh_piece(PlayerId::P1, TetrominoKind::I, None);
         assert!(!p.locked);
     }
 
@@ -554,7 +564,7 @@ mod tests {
         // If piece doesn't fit at spawn position, check_game_over should detect it.
         // Simulate by filling the spawn area cells on the board.
         let mut board = Board::default();
-        let piece = fresh_piece(PlayerId::P1, TetrominoKind::O);
+        let piece = fresh_piece(PlayerId::P1, TetrominoKind::O, None);
         // O at R0 occupies (col,row),(col+1,row),(col,row+1),(col+1,row+1)
         let col = piece.col;
         let row = piece.row;

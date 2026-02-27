@@ -97,7 +97,7 @@ pub fn setup_hud(mut commands: Commands, mode: Res<SelectedMode>) {
                         TextFont::from_font_size(22.0),
                     ));
                 }
-                SelectedMode::Endless => {}
+                SelectedMode::Endless | SelectedMode::Chaos => {}
             }
         });
 }
@@ -223,7 +223,7 @@ pub fn update_hud(
                 *text_color = TextColor(color);
             }
         }
-        SelectedMode::Endless => {}
+        SelectedMode::Endless | SelectedMode::Chaos => {}
     }
 }
 
@@ -321,7 +321,8 @@ pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>) {
         Some(secs) => format!("Best: {}", fmt_time_sprint(secs)),
         None => "Best: --".to_string(),
     };
-    let ultra_best = format!("Best: {} pts", fmt_score(config.high_scores.ultra_best));
+    let ultra_best  = format!("Best: {} pts", fmt_score(config.high_scores.ultra_best));
+    let chaos_best  = format!("Best: {} pts", fmt_score(config.high_scores.chaos_best));
 
     commands
         .spawn((
@@ -360,6 +361,12 @@ pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>) {
             parent.spawn((
                 Text::new(format!("3  ULTRA  (2 min)  -  {ultra_best}")),
                 TextColor(Color::srgb(1.0, 0.7, 0.3)),
+                TextFont::from_font_size(24.0),
+            ));
+            // Chaos
+            parent.spawn((
+                Text::new(format!("4  CHAOS  -  {chaos_best}")),
+                TextColor(Color::srgb(1.0, 0.4, 0.9)),
                 TextFont::from_font_size(24.0),
             ));
 
@@ -423,6 +430,10 @@ pub fn mode_select_input(
         next_state.set(GameState::Playing);
     } else if keyboard.just_pressed(KeyCode::Digit3) {
         *selected_mode = SelectedMode::Ultra;
+        reset_game(&mut score, &mut board, config.start_level);
+        next_state.set(GameState::Playing);
+    } else if keyboard.just_pressed(KeyCode::Digit4) {
+        *selected_mode = SelectedMode::Chaos;
         reset_game(&mut score, &mut board, config.start_level);
         next_state.set(GameState::Playing);
     } else if keyboard.just_pressed(KeyCode::KeyS) {
@@ -531,6 +542,9 @@ pub fn setup_game_over(
         },
         SelectedMode::Ultra => {
             format!("Best: {} pts", fmt_score(config.high_scores.ultra_best.max(score.score)))
+        }
+        SelectedMode::Chaos => {
+            format!("Best: {} pts", fmt_score(config.high_scores.chaos_best.max(score.score)))
         }
     };
 

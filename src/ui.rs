@@ -13,9 +13,11 @@ use crate::state::{GameState, QuitToMenu, SelectedMode};
 #[derive(Resource)]
 pub struct GameFont(pub Handle<Font>);
 
-pub fn load_font(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let handle = asset_server.load("fonts/NotoSans-Regular.ttf");
-    commands.insert_resource(GameFont(handle));
+impl FromWorld for GameFont {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
+        GameFont(asset_server.load("fonts/NotoSans-Regular.ttf"))
+    }
 }
 
 fn reset_game(score: &mut ScoreBoard, board: &mut Board, start_level: u32) {

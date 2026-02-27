@@ -6,6 +6,18 @@ use crate::modes::{ModeTimer, SPRINT_GOAL, ULTRA_DURATION};
 use crate::scoring::ScoreBoard;
 use crate::state::{GameState, QuitToMenu, SelectedMode};
 
+// ── Font resource ─────────────────────────────────────────────────────────────
+
+/// Holds the handle to the game's custom font (NotoSans), loaded once at startup.
+/// Use this in every text-spawning system so all characters render correctly.
+#[derive(Resource)]
+pub struct GameFont(pub Handle<Font>);
+
+pub fn load_font(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let handle = asset_server.load("fonts/NotoSans-Regular.ttf");
+    commands.insert_resource(GameFont(handle));
+}
+
 fn reset_game(score: &mut ScoreBoard, board: &mut Board, start_level: u32) {
     score.reset_preserving_high_score();
     score.level = start_level.max(1);
@@ -35,7 +47,8 @@ pub struct ModeTimerText;
 #[derive(Component)]
 pub struct LinesRemainingText;
 
-pub fn setup_hud(mut commands: Commands, mode: Res<SelectedMode>) {
+pub fn setup_hud(mut commands: Commands, mode: Res<SelectedMode>, font: Res<GameFont>) {
+    let f = |size: f32| TextFont { font: font.0.clone(), font_size: size, ..default() };
     commands
         .spawn((
             HudRoot,
@@ -54,25 +67,25 @@ pub fn setup_hud(mut commands: Commands, mode: Res<SelectedMode>) {
                 ScoreText,
                 Text::new("Score: 0"),
                 TextColor(Color::WHITE),
-                TextFont::from_font_size(22.0),
+                f(22.0),
             ));
             parent.spawn((
                 LevelText,
                 Text::new("Level: 1"),
                 TextColor(Color::srgb(0.8, 0.8, 0.8)),
-                TextFont::from_font_size(18.0),
+                f(18.0),
             ));
             parent.spawn((
                 ComboText,
                 Text::new(""),
                 TextColor(Color::srgb(1.0, 0.85, 0.2)),
-                TextFont::from_font_size(16.0),
+                f(16.0),
             ));
             parent.spawn((
                 HighScoreText,
                 Text::new("Best: 0"),
                 TextColor(Color::srgb(0.6, 0.9, 1.0)),
-                TextFont::from_font_size(16.0),
+                f(16.0),
             ));
             match *mode {
                 SelectedMode::Sprint => {
@@ -80,13 +93,13 @@ pub fn setup_hud(mut commands: Commands, mode: Res<SelectedMode>) {
                         LinesRemainingText,
                         Text::new(format!("Lines: {SPRINT_GOAL}")),
                         TextColor(Color::srgb(0.4, 1.0, 0.6)),
-                        TextFont::from_font_size(20.0),
+                        f(20.0),
                     ));
                     parent.spawn((
                         ModeTimerText,
                         Text::new("00:00.0"),
                         TextColor(Color::srgb(0.9, 0.9, 0.9)),
-                        TextFont::from_font_size(20.0),
+                        f(20.0),
                     ));
                 }
                 SelectedMode::Ultra => {
@@ -94,7 +107,7 @@ pub fn setup_hud(mut commands: Commands, mode: Res<SelectedMode>) {
                         ModeTimerText,
                         Text::new("02:00"),
                         TextColor(Color::WHITE),
-                        TextFont::from_font_size(22.0),
+                        f(22.0),
                     ));
                 }
                 SelectedMode::Endless | SelectedMode::Chaos => {}
@@ -232,7 +245,8 @@ pub fn update_hud(
 #[derive(Component)]
 pub struct MenuRoot;
 
-pub fn setup_menu(mut commands: Commands) {
+pub fn setup_menu(mut commands: Commands, font: Res<GameFont>) {
+    let f = |size: f32| TextFont { font: font.0.clone(), font_size: size, ..default() };
     commands
         .spawn((
             MenuRoot,
@@ -251,42 +265,42 @@ pub fn setup_menu(mut commands: Commands) {
             parent.spawn((
                 Text::new("TETRIS DUO"),
                 TextColor(Color::WHITE),
-                TextFont::from_font_size(52.0),
+                f(52.0),
             ));
             parent.spawn((
                 Text::new("Cooperative - clear lines together!"),
                 TextColor(Color::srgb(0.6, 0.9, 0.6)),
-                TextFont::from_font_size(18.0),
+                f(18.0),
             ));
             // Spacer
             parent.spawn((
                 Text::new(" "),
-                TextFont::from_font_size(8.0),
+                f(8.0),
             ));
             parent.spawn((
                 Text::new("SPACE  - select mode"),
                 TextColor(Color::srgb(0.9, 0.9, 0.9)),
-                TextFont::from_font_size(22.0),
+                f(22.0),
             ));
             parent.spawn((
                 Text::new("M      - mute / unmute"),
                 TextColor(Color::srgb(0.7, 0.7, 0.7)),
-                TextFont::from_font_size(18.0),
+                f(18.0),
             ));
             // Spacer
             parent.spawn((
                 Text::new(" "),
-                TextFont::from_font_size(8.0),
+                f(8.0),
             ));
             parent.spawn((
                 Text::new("P1: A/D move  W/Q rotate  S soft-drop  Space hard-drop  LShift hold"),
                 TextColor(Color::srgb(0.4, 0.65, 1.0)),
-                TextFont::from_font_size(14.0),
+                f(14.0),
             ));
             parent.spawn((
                 Text::new("P2: Left/Right move  Up/RCtrl rotate  Down soft-drop  Enter hard-drop  RShift hold"),
                 TextColor(Color::srgb(1.0, 0.75, 0.55)),
-                TextFont::from_font_size(14.0),
+                f(14.0),
             ));
         });
 }
@@ -315,7 +329,8 @@ pub struct ModeSelectRoot;
 #[derive(Component)]
 pub struct StartLevelText;
 
-pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>) {
+pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>, font: Res<GameFont>) {
+    let f = |size: f32| TextFont { font: font.0.clone(), font_size: size, ..default() };
     let endless_best = format!("Best: {} pts", fmt_score(config.high_scores.endless));
     let sprint_best = match config.high_scores.sprint_best {
         Some(secs) => format!("Best: {}", fmt_time_sprint(secs)),
@@ -342,45 +357,45 @@ pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>) {
             parent.spawn((
                 Text::new("SELECT MODE"),
                 TextColor(Color::WHITE),
-                TextFont::from_font_size(40.0),
+                f(40.0),
             ));
 
             // Endless
             parent.spawn((
                 Text::new(format!("1  CLASIC  -  {endless_best}")),
                 TextColor(Color::srgb(0.6, 0.9, 1.0)),
-                TextFont::from_font_size(24.0),
+                f(24.0),
             ));
             // Sprint
             parent.spawn((
                 Text::new(format!("2  SPRINT  ({} lines)  -  {sprint_best}", SPRINT_GOAL)),
                 TextColor(Color::srgb(0.4, 1.0, 0.6)),
-                TextFont::from_font_size(24.0),
+                f(24.0),
             ));
             // Ultra
             parent.spawn((
                 Text::new(format!("3  ULTRA  (2 min)  -  {ultra_best}")),
                 TextColor(Color::srgb(1.0, 0.7, 0.3)),
-                TextFont::from_font_size(24.0),
+                f(24.0),
             ));
             // Chaos
             parent.spawn((
                 Text::new(format!("4  CHAOS  -  {chaos_best}")),
                 TextColor(Color::srgb(1.0, 0.4, 0.9)),
-                TextFont::from_font_size(24.0),
+                f(24.0),
             ));
 
             parent.spawn((
                 StartLevelText,
                 Text::new(format!("Nivel inicio: {:2}  ( <- -> )", config.start_level)),
                 TextColor(Color::srgb(0.9, 0.9, 0.5)),
-                TextFont::from_font_size(20.0),
+                f(20.0),
             ));
 
             parent.spawn((
                 Text::new("S - Settings"),
                 TextColor(Color::srgb(0.6, 0.6, 0.6)),
-                TextFont::from_font_size(18.0),
+                f(18.0),
             ));
         });
 }
@@ -446,7 +461,8 @@ pub fn mode_select_input(
 #[derive(Component)]
 pub struct PauseRoot;
 
-pub fn setup_pause(mut commands: Commands) {
+pub fn setup_pause(mut commands: Commands, font: Res<GameFont>) {
+    let f = |size: f32| TextFont { font: font.0.clone(), font_size: size, ..default() };
     commands
         .spawn((
             PauseRoot,
@@ -465,22 +481,22 @@ pub fn setup_pause(mut commands: Commands) {
             parent.spawn((
                 Text::new("PAUSED"),
                 TextColor(Color::srgb(1.0, 0.9, 0.2)),
-                TextFont::from_font_size(56.0),
+                f(56.0),
             ));
             parent.spawn((
                 Text::new("ESC - resume"),
                 TextColor(Color::srgb(0.7, 0.7, 0.7)),
-                TextFont::from_font_size(22.0),
+                f(22.0),
             ));
             parent.spawn((
                 Text::new("M   - mute / unmute"),
                 TextColor(Color::srgb(0.6, 0.6, 0.6)),
-                TextFont::from_font_size(20.0),
+                f(20.0),
             ));
             parent.spawn((
                 Text::new("Q   - quit to menu"),
                 TextColor(Color::srgb(0.9, 0.4, 0.4)),
-                TextFont::from_font_size(22.0),
+                f(22.0),
             ));
         });
 }
@@ -523,6 +539,7 @@ pub fn setup_game_over(
     mode: Res<SelectedMode>,
     timer: Res<ModeTimer>,
     config: Res<AppConfig>,
+    font: Res<GameFont>,
 ) {
     let is_timeout = *mode == SelectedMode::Ultra && timer.elapsed >= ULTRA_DURATION;
 
@@ -548,6 +565,7 @@ pub fn setup_game_over(
         }
     };
 
+    let f = |size: f32| TextFont { font: font.0.clone(), font_size: size, ..default() };
     commands
         .spawn((
             GameOverRoot,
@@ -566,22 +584,22 @@ pub fn setup_game_over(
             parent.spawn((
                 Text::new(title),
                 TextColor(title_color),
-                TextFont::from_font_size(48.0),
+                f(48.0),
             ));
             parent.spawn((
                 Text::new(format!("Score: {}  |  Level: {}", fmt_score(score.score), score.level)),
                 TextColor(Color::WHITE),
-                TextFont::from_font_size(28.0),
+                f(28.0),
             ));
             parent.spawn((
                 Text::new(best_line),
                 TextColor(Color::srgb(0.6, 0.9, 1.0)),
-                TextFont::from_font_size(22.0),
+                f(22.0),
             ));
             parent.spawn((
                 Text::new("Press SPACE to return to mode select"),
                 TextColor(Color::srgb(0.7, 0.7, 0.7)),
-                TextFont::from_font_size(22.0),
+                f(22.0),
             ));
         });
 }
@@ -613,6 +631,7 @@ pub fn setup_sprint_complete(
     mut commands: Commands,
     timer: Res<ModeTimer>,
     mut config: ResMut<AppConfig>,
+    font: Res<GameFont>,
 ) {
     let elapsed = timer.elapsed;
     let time_str = fmt_time_sprint(elapsed);
@@ -627,6 +646,7 @@ pub fn setup_sprint_complete(
         (format!("Mejor: {best_str}"), Color::srgb(0.5, 0.5, 0.5))
     };
 
+    let f = |size: f32| TextFont { font: font.0.clone(), font_size: size, ..default() };
     commands
         .spawn((
             SprintCompleteRoot,
@@ -645,22 +665,22 @@ pub fn setup_sprint_complete(
             parent.spawn((
                 Text::new("SPRINT COMPLETE!"),
                 TextColor(Color::srgb(0.3, 1.0, 0.5)),
-                TextFont::from_font_size(48.0),
+                f(48.0),
             ));
             parent.spawn((
                 Text::new(format!("Time: {time_str}")),
                 TextColor(Color::WHITE),
-                TextFont::from_font_size(32.0),
+                f(32.0),
             ));
             parent.spawn((
                 Text::new(record_text),
                 TextColor(record_color),
-                TextFont::from_font_size(24.0),
+                f(24.0),
             ));
             parent.spawn((
                 Text::new("Press SPACE to return to mode select"),
                 TextColor(Color::srgb(0.7, 0.7, 0.7)),
-                TextFont::from_font_size(22.0),
+                f(22.0),
             ));
         });
 }
@@ -776,7 +796,8 @@ fn binding_str(config: &AppConfig, player: PlayerId, action: PieceAction) -> Str
     format!("[{key}]")
 }
 
-pub fn setup_settings(mut commands: Commands, config: Res<AppConfig>) {
+pub fn setup_settings(mut commands: Commands, config: Res<AppConfig>, font: Res<GameFont>) {
+    let f = |size: f32| TextFont { font: font.0.clone(), font_size: size, ..default() };
     commands.insert_resource(SettingsCursor::default());
 
     commands
@@ -797,7 +818,7 @@ pub fn setup_settings(mut commands: Commands, config: Res<AppConfig>) {
             parent.spawn((
                 Text::new("SETTINGS"),
                 TextColor(Color::WHITE),
-                TextFont::from_font_size(40.0),
+                f(40.0),
             ));
 
             // Header row
@@ -811,19 +832,19 @@ pub fn setup_settings(mut commands: Commands, config: Res<AppConfig>) {
                     row.spawn((
                         Text::new("Action"),
                         TextColor(Color::srgb(0.7, 0.7, 0.7)),
-                        TextFont::from_font_size(18.0),
+                        f(18.0),
                         Node { width: Val::Px(140.0), ..default() },
                     ));
                     row.spawn((
                         Text::new("Player 1"),
                         TextColor(Color::srgb(0.4, 0.65, 1.0)),
-                        TextFont::from_font_size(18.0),
+                        f(18.0),
                         Node { width: Val::Px(160.0), ..default() },
                     ));
                     row.spawn((
                         Text::new("Player 2"),
                         TextColor(Color::srgb(1.0, 0.75, 0.55)),
-                        TextFont::from_font_size(18.0),
+                        f(18.0),
                         Node { width: Val::Px(160.0), ..default() },
                     ));
                 });
@@ -844,7 +865,7 @@ pub fn setup_settings(mut commands: Commands, config: Res<AppConfig>) {
                         row.spawn((
                             Text::new(name),
                             TextColor(Color::srgb(0.85, 0.85, 0.85)),
-                            TextFont::from_font_size(18.0),
+                            f(18.0),
                             Node { width: Val::Px(140.0), ..default() },
                         ));
                         // P1 binding
@@ -852,7 +873,7 @@ pub fn setup_settings(mut commands: Commands, config: Res<AppConfig>) {
                             BindingLabel { player: PlayerId::P1, action },
                             Text::new(p1_str),
                             TextColor(Color::srgb(0.8, 0.8, 0.8)),
-                            TextFont::from_font_size(18.0),
+                            f(18.0),
                             Node { width: Val::Px(160.0), ..default() },
                         ));
                         // P2 binding
@@ -860,7 +881,7 @@ pub fn setup_settings(mut commands: Commands, config: Res<AppConfig>) {
                             BindingLabel { player: PlayerId::P2, action },
                             Text::new(p2_str),
                             TextColor(Color::srgb(0.8, 0.8, 0.8)),
-                            TextFont::from_font_size(18.0),
+                            f(18.0),
                             Node { width: Val::Px(160.0), ..default() },
                         ));
                     });
@@ -871,13 +892,13 @@ pub fn setup_settings(mut commands: Commands, config: Res<AppConfig>) {
                 VolumeBar,
                 Text::new(volume_bar_str(config.volume)),
                 TextColor(Color::srgb(0.8, 0.85, 1.0)),
-                TextFont::from_font_size(18.0),
+                f(18.0),
             ));
 
             parent.spawn((
                 Text::new("Up/Down: navigate  |  Left/Right: select column or adjust volume  |  Enter: remap key  |  ESC: save & return"),
                 TextColor(Color::srgb(0.5, 0.5, 0.5)),
-                TextFont::from_font_size(14.0),
+                f(14.0),
             ));
         });
 }

@@ -45,6 +45,7 @@ impl Plugin for TetrisDuoPlugin {
             .add_event::<scoring::LevelUpEvent>()
             // Startup
             .add_systems(PreStartup, config::load_config)
+            .add_systems(Startup, ui::load_font)
             // Menu
             .add_systems(OnEnter(GameState::Menu), (audio::start_bg_music, ui::setup_menu))
             .add_systems(OnExit(GameState::Menu), ui::despawn_menu)

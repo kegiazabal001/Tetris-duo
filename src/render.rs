@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::board::{Board, PieceColor, COLS, VISIBLE_ROWS};
+use crate::ui::GameFont;
 use crate::collision::{self, piece_fits};
 use crate::piece::{self, Rotation, TetrominoKind};
 use crate::piece::TSpinType;
@@ -556,10 +557,10 @@ pub fn tick_lock_flash(time: Res<Time>, mut lock_flash: ResMut<PieceLockFlash>) 
 
 // ── Popup helpers ──────────────────────────────────────────────────────────────
 
-fn spawn_popup(commands: &mut Commands, text: &str, pos: Vec3, lifetime: f32) {
+fn spawn_popup(commands: &mut Commands, font: &GameFont, text: &str, pos: Vec3, lifetime: f32) {
     commands.spawn((
         Text2d::new(text.to_string()),
-        TextFont::from_font_size(28.0),
+        TextFont { font: font.0.clone(), font_size: 28.0, ..default() },
         TextColor(Color::WHITE),
         Transform::from_translation(pos),
         PopupText { lifetime, total: lifetime },
@@ -571,6 +572,7 @@ pub fn spawn_popups(
     mut commands: Commands,
     mut ev: EventReader<LinesCleared>,
     score: Res<ScoreBoard>,
+    font: Res<GameFont>,
 ) {
     for event in ev.read() {
         if event.count == 0 {
@@ -589,20 +591,20 @@ pub fn spawn_popups(
             _ => None,
         };
         if let Some(text) = label {
-            spawn_popup(&mut commands, text, Vec3::new(x, 40.0, 10.0), 1.5);
+            spawn_popup(&mut commands, &font, text, Vec3::new(x, 40.0, 10.0), 1.5);
         }
         if score.combo > 0 {
             let combo_text = format!("COMBO x{}", score.combo);
-            spawn_popup(&mut commands, &combo_text, Vec3::new(x, 10.0, 10.0), 1.5);
+            spawn_popup(&mut commands, &font, &combo_text, Vec3::new(x, 10.0, 10.0), 1.5);
         }
     }
 }
 
 /// Spawn "LEVEL X!" popup when level increases.
-pub fn on_level_up(mut commands: Commands, mut ev: EventReader<LevelUpEvent>) {
+pub fn on_level_up(mut commands: Commands, mut ev: EventReader<LevelUpEvent>, font: Res<GameFont>) {
     for event in ev.read() {
         let text = format!("LEVEL {}!", event.new_level);
-        spawn_popup(&mut commands, &text, Vec3::new(0.0, 80.0, 10.0), 2.0);
+        spawn_popup(&mut commands, &font, &text, Vec3::new(0.0, 80.0, 10.0), 2.0);
     }
 }
 

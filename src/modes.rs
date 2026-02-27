@@ -61,33 +61,18 @@ pub fn reset_chaos_state(mut cs: ResMut<ChaosState>) {
     *cs = ChaosState::default();
 }
 
-/// Ticks chaos timers and resolves event completion every frame.
+/// Resolves chaos event completion: swap ends when both players have placed all swapped pieces.
 pub fn tick_chaos(
-    time: Res<Time>,
     mode: Res<SelectedMode>,
     mut cs: ResMut<ChaosState>,
 ) {
     if *mode != SelectedMode::Chaos { return; }
     if cs.active_event.is_none() { return; }
 
-    let dt = time.delta_secs();
-
-    if cs.blackout_active {
-        cs.blackout_timer -= dt;
-        if cs.blackout_timer <= 0.0 {
-            cs.blackout_timer  = 0.0;
-            cs.blackout_active = false;
-        }
-    }
-
     if cs.swap_active && cs.swap_p1_remaining == 0 && cs.swap_p2_remaining == 0 {
-        cs.swap_active = false;
-    }
-
-    // Event fully over when both swap and blackout are done
-    if !cs.swap_active && !cs.blackout_active {
-        cs.active_event             = None;
-        cs.pieces_since_last_event  = 0;
+        cs.swap_active             = false;
+        cs.active_event            = None;
+        cs.pieces_since_last_event = 0;
     }
 }
 

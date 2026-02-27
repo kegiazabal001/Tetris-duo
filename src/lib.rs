@@ -109,7 +109,7 @@ impl Plugin for TetrisDuoPlugin {
                         render::on_level_up,
                         audio::play_piece_sounds,
                         audio::play_rotate_sound,
-                    ),
+                    ).chain(),
                     (
                         audio::play_level_up_sound,
                         audio::play_game_over_sound,
@@ -126,7 +126,6 @@ impl Plugin for TetrisDuoPlugin {
                         render::tick_flash_timer,
                         render::tick_lock_flash,
                         render::tick_popups,
-                        render::sync_blackout_overlay,
                     ),
                 )
                     .chain()
@@ -168,6 +167,7 @@ fn cleanup_on_quit(
     mut score: ResMut<scoring::ScoreBoard>,
     mut mode_timer: ResMut<modes::ModeTimer>,
     mut selected_mode: ResMut<SelectedMode>,
+    mut chaos: ResMut<ChaosState>,
     players: Query<Entity, With<player::ActivePiece>>,
     board_sprites: Query<
         Entity,
@@ -179,7 +179,6 @@ fn cleanup_on_quit(
             With<render::NextPieceBlock>,
             With<render::HoldPieceBlock>,
             With<render::PopupText>,
-            With<render::BlackoutOverlay>,
         )>,
     >,
     hud: Query<Entity, With<ui::HudRoot>>,
@@ -194,4 +193,5 @@ fn cleanup_on_quit(
     score.reset_preserving_high_score();
     mode_timer.elapsed = 0.0;
     *selected_mode = SelectedMode::default();
+    *chaos = ChaosState::default();
 }

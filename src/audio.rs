@@ -98,24 +98,6 @@ pub fn stop_game_music(mut commands: Commands, query: Query<Entity, With<GameMus
     }
 }
 
-/// Updates the volume of the background music sink to match AppConfig.
-pub fn set_bg_volume(mut query: Query<&mut AudioSink, With<BgMusic>>, config: Res<AppConfig>) {
-    for mut sink in query.iter_mut() {
-        sink.set_volume(Volume::Linear(config.volume));
-    }
-}
-
-pub fn pause_bg_music(query: Query<&AudioSink, With<BgMusic>>) {
-    for sink in query.iter() {
-        sink.pause();
-    }
-}
-
-pub fn resume_bg_music(query: Query<&AudioSink, With<BgMusic>>) {
-    for sink in query.iter() {
-        sink.play();
-    }
-}
 
 pub fn play_piece_sounds(
     mut commands: Commands,

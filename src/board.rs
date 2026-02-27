@@ -129,9 +129,11 @@ impl Board {
         for (orig_row, col) in saved_anchors {
             let shift = rows.iter().filter(|&&r| r <= orig_row).count();
             let new_row = orig_row.saturating_sub(shift);
-            // Place only if the target cell is empty (another anchor may already be here).
-            if self.cells[new_row][col].is_none() {
-                self.cells[new_row][col] = Some(PieceColor::Anchor);
+            // Find the first empty row at or above new_row (handles collision when
+            // two anchors in the same column are both cleared and land on the same slot).
+            let target = (new_row..ROWS).find(|&r| self.cells[r][col].is_none());
+            if let Some(r) = target {
+                self.cells[r][col] = Some(PieceColor::Anchor);
             }
         }
 

@@ -64,8 +64,11 @@ fn color_for(pc: PieceColor) -> Color {
     }
 }
 
-/// Obsidian color for anchor pieces (active/ghost).
+/// Obsidian color for anchor pieces (active/ghost), normal mode.
 fn anchor_color() -> Color { Color::srgb(0.13, 0.08, 0.20) }
+
+/// Quartz-white color for anchor pieces during B&W blackout — ensures high contrast.
+fn anchor_color_bw() -> Color { Color::srgb(0.92, 0.90, 0.95) }
 
 fn active_color(player: PlayerId, kind: TetrominoKind) -> Color {
     match player {
@@ -346,8 +349,12 @@ pub fn sync_board_cells(
     for (cell, mut sprite) in &mut query {
         let base = match board.cells[cell.row][cell.col] {
             Some(pc) => {
-                let c = color_for(pc);
-                if bw { to_grayscale(c) } else { c }
+                if bw && pc.is_anchor() {
+                    anchor_color_bw()
+                } else {
+                    let c = color_for(pc);
+                    if bw { to_grayscale(c) } else { c }
+                }
             }
             None => if bw { Color::srgb(0.05, 0.05, 0.05) } else { Color::srgb(0.12, 0.12, 0.15) },
         };
@@ -422,8 +429,13 @@ pub fn sync_active_pieces(
         if cy < VISIBLE_ROWS as i32 && cy >= 0 && cx >= 0 && cx < COLS as i32 {
             tf.translation = cell_pos(cx as usize, cy as usize);
             tf.translation.z = 2.0;
-            let c = if piece.is_anchor { anchor_color() } else { active_color(piece.player, piece.kind) };
-            sprite.color = if bw { to_grayscale(c) } else { c };
+            let c = if piece.is_anchor {
+                if bw { anchor_color_bw() } else { anchor_color() }
+            } else {
+                let c = active_color(piece.player, piece.kind);
+                if bw { to_grayscale(c) } else { c }
+            };
+            sprite.color = c;
         } else {
             tf.translation.y = -1000.0;
         }
@@ -466,12 +478,18 @@ pub fn sync_ghost_pieces(
             tf.translation.z = 1.0;
             let is_anchor = players.iter().find(|p| p.player == *player).map_or(false, |p| p.is_anchor);
             let c = if is_anchor {
-                let a = anchor_color().to_srgba();
-                Color::srgba(a.red, a.green, a.blue, 0.22)
+                if bw {
+                    let a = anchor_color_bw().to_srgba();
+                    Color::srgba(a.red, a.green, a.blue, 0.45)
+                } else {
+                    let a = anchor_color().to_srgba();
+                    Color::srgba(a.red, a.green, a.blue, 0.22)
+                }
             } else {
-                ghost_color(*player, pos.kind)
+                let c = ghost_color(*player, pos.kind);
+                if bw { to_grayscale(c) } else { c }
             };
-            sprite.color = if bw { to_grayscale(c) } else { c };
+            sprite.color = c;
         } else {
             tf.translation.y = -1000.0;
         }

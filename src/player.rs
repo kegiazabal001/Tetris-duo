@@ -52,6 +52,7 @@ pub struct ActivePiece {
     pub last_was_rotation: bool,
     // Hold piece
     pub hold: Option<TetrominoKind>,
+    pub hold_is_anchor: bool,
     pub hold_used: bool,
     // DAS (Delayed Auto-Shift) state
     pub das_left: f32,
@@ -174,6 +175,7 @@ fn fresh_piece(player: PlayerId, kind: TetrominoKind, chaos: Option<&ChaosState>
         soft_drop_held: false,
         last_was_rotation: false,
         hold: None,
+        hold_is_anchor: false,
         hold_used: false,
         das_left: 0.0,
         das_right: 0.0,
@@ -277,8 +279,12 @@ pub fn handle_input(
                 None => bag.pop(),
             };
             let held_kind = piece.kind;
+            let held_is_anchor = piece.is_anchor;
+            let incoming_is_anchor = piece.hold_is_anchor;
             *piece = fresh_piece(piece.player, new_kind, chaos.as_deref());
             piece.hold = Some(held_kind);
+            piece.hold_is_anchor = held_is_anchor;
+            piece.is_anchor = incoming_is_anchor;
             piece.hold_used = true;
             continue;
         }
@@ -511,6 +517,7 @@ mod tests {
             soft_drop_held: false,
             last_was_rotation: false,
             hold: None,
+            hold_is_anchor: false,
             hold_used: false,
             das_left: 0.0,
             das_right: 0.0,

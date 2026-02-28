@@ -12,7 +12,7 @@ use crate::config::AppConfig;
 use crate::input::{input_map_for, PieceAction};
 use crate::piece::{Rotation, TSpinType, TetrominoKind};
 use crate::constants::{ARR_RATE, DAS_DELAY, LOCK_DELAY};
-use crate::state::ChaosState;
+use crate::state::{ChaosState, SelectedMode};
 use crate::scoring::ScoreBoard;
 use crate::state::GameState;
 
@@ -427,6 +427,7 @@ pub fn lock_piece(
     mut ev_lock: EventReader<PieceLocked>,
     mut ev_lines: EventWriter<LinesCleared>,
     chaos: Option<Res<ChaosState>>,
+    selected_mode: Res<SelectedMode>,
 ) {
     // Snapshot all positions before any mutation so spawn-collision checks are stable.
     let pre_positions: Vec<(PlayerId, PiecePos)> = players
@@ -476,7 +477,7 @@ pub fn lock_piece(
             *piece = fresh_piece(piece.player, next_kind, chaos.as_deref());
             piece.hold = hold; // preserve held piece across locks
             // In Chaos mode, 1-in-40 chance the new piece is an anchor
-            if chaos.is_some() && rand::random::<f32>() < 1.0 / 40.0 {
+            if *selected_mode == SelectedMode::Chaos && rand::random::<f32>() < 1.0 / 40.0 {
                 piece.is_anchor = true;
             }
 

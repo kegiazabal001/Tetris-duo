@@ -285,7 +285,7 @@ pub fn handle_input(
         let other = snapshots.iter().flatten().find(|(pid, _)| *pid != piece.player).map(|(_, pos)| *pos);
 
         // --- Hold piece ---
-        if action.just_pressed(&PieceAction::Hold) && !piece.hold_used {
+        if action.just_pressed(&PieceAction::Hold) && !piece.hold_used && !piece.is_anchor {
             let new_kind = match piece.hold {
                 Some(k) => k,
                 None => bag.pop(),

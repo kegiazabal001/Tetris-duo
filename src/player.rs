@@ -738,7 +738,9 @@ pub fn check_game_over(
     mut ev_gameover: EventWriter<GameOverEvent>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
-    let snapshots = collect_snapshots(players.iter().map(|ap| (ap.player, ap.to_piece_pos())));
+    let snapshots = collect_snapshots(players.iter()
+        .filter(|ap| !ap.waiting_for_flip)
+        .map(|ap| (ap.player, ap.to_piece_pos())));
     for (player, pos) in snapshots.iter().flatten() {
         let other = snapshots.iter().flatten().find(|(pid, _)| pid != player).map(|(_, p)| *p);
         if !piece_fits(&board, pos.kind, pos.rotation, pos.col, pos.row, other) {

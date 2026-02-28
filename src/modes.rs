@@ -1,11 +1,12 @@
 use bevy::prelude::*;
 
+use crate::board::Board;
 use crate::config::AppConfig;
 use crate::player::{PieceLocked, PlayerId};
 use crate::scoring::ScoreBoard;
-use crate::state::{ChaosState, GameState, SelectedMode, CHAOS_PIECE_THRESHOLD};
+use crate::state::{ChaosEvent, ChaosState, FlipPhase, GameState, SelectedMode, CHAOS_PIECE_THRESHOLD};
 
-pub use crate::constants::{SPRINT_GOAL, ULTRA_DURATION};
+pub use crate::constants::{FLIP_DURATION, FLIP_MIGRATION_INTERVAL, SPRINT_GOAL, ULTRA_DURATION};
 
 #[derive(Resource, Default)]
 pub struct ModeTimer {
@@ -85,17 +86,114 @@ pub fn on_piece_locked_chaos(
     if *mode != SelectedMode::Chaos { return; }
 
     for event in ev.read() {
-        if cs.active_event.is_some() {
-            match event.player {
-                PlayerId::P1 => { if cs.swap_p1_remaining > 0 { cs.swap_p1_remaining -= 1; } }
-                PlayerId::P2 => { if cs.swap_p2_remaining > 0 { cs.swap_p2_remaining -= 1; } }
+        match cs.active_event {
+            Some(ChaosEvent::SwapBlackout) => {
+                match event.player {
+                    PlayerId::P1 => { if cs.swap_p1_remaining > 0 { cs.swap_p1_remaining -= 1; } }
+                    PlayerId::P2 => { if cs.swap_p2_remaining > 0 { cs.swap_p2_remaining -= 1; } }
+                }
             }
-        } else {
-            cs.pieces_since_last_event += 1;
-            if cs.pieces_since_last_event >= CHAOS_PIECE_THRESHOLD {
-                cs.trigger_next_event();
+            Some(ChaosEvent::Flip) => {
+                // Waiting phases: track when each player places their current piece.
+                // The actual phase advance happens in tick_flip_migration.
+                match cs.flip_phase {
+                    FlipPhase::Waiting | FlipPhase::WaitingEnd => {
+                        match event.player {
+                            PlayerId::P1 => cs.flip_wait_p1_done = true,
+                            PlayerId::P2 => cs.flip_wait_p2_done = true,
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            None => {
+                cs.pieces_since_last_event += 1;
+                if cs.pieces_since_last_event >= CHAOS_PIECE_THRESHOLD {
+                    cs.trigger_next_event();
+                }
             }
         }
+    }
+}
+
+/// Drives the FLIP! event state machine every frame.
+pub fn tick_flip_migration(
+    mode:     Res<SelectedMode>,
+    time:     Res<Time>,
+    mut cs:   ResMut<ChaosState>,
+    mut board: ResMut<Board>,
+    mut score: ResMut<ScoreBoard>,
+) {
+    if *mode != SelectedMode::Chaos { return; }
+    if cs.active_event != Some(ChaosEvent::Flip) { return; }
+
+    let dt = time.delta_secs();
+
+    match cs.flip_phase {
+        FlipPhase::Waiting => {
+            if cs.flip_wait_p1_done && cs.flip_wait_p2_done {
+                cs.flip_phase = FlipPhase::MigratingUp;
+                cs.flip_timer = 0.0;
+            }
+        }
+        FlipPhase::MigratingUp => {
+            cs.flip_timer += dt;
+            if cs.flip_timer >= FLIP_MIGRATION_INTERVAL {
+                cs.flip_timer -= FLIP_MIGRATION_INTERVAL;
+                let moved = board.apply_gravity_step(1);
+                // Clear any full rows formed by compaction against the ceiling.
+                let full = board.detect_full_rows();
+                if !full.is_empty() {
+                    let n = full.len() as u32;
+                    board.remove_rows(&full, 1);
+                    score.score += n * 100; // bonus for lines cleared during migration
+                }
+                if !moved {
+                    // All cells have reached the ceiling — begin Active phase.
+                    cs.flip_phase = FlipPhase::Active;
+                    cs.gravity_dir = -1;
+                    cs.flip_timer = FLIP_DURATION;
+                    // Reset waiting flags for WaitingEnd.
+                    cs.flip_wait_p1_done = false;
+                    cs.flip_wait_p2_done = false;
+                }
+            }
+        }
+        FlipPhase::Active => {
+            cs.flip_timer -= dt;
+            if cs.flip_timer <= 0.0 {
+                cs.flip_phase = FlipPhase::WaitingEnd;
+            }
+        }
+        FlipPhase::WaitingEnd => {
+            if cs.flip_wait_p1_done && cs.flip_wait_p2_done {
+                cs.flip_phase = FlipPhase::MigratingDown;
+                cs.flip_timer = 0.0;
+                cs.gravity_dir = 1; // restore normal gravity for migration
+            }
+        }
+        FlipPhase::MigratingDown => {
+            cs.flip_timer += dt;
+            if cs.flip_timer >= FLIP_MIGRATION_INTERVAL {
+                cs.flip_timer -= FLIP_MIGRATION_INTERVAL;
+                let moved = board.apply_gravity_step(-1);
+                // Clear any full rows formed by compaction toward the floor.
+                let full = board.detect_full_rows();
+                if !full.is_empty() {
+                    let n = full.len() as u32;
+                    board.remove_rows(&full, -1);
+                    score.score += n * 100;
+                }
+                if !moved {
+                    // All cells have settled — event complete.
+                    cs.flip_phase = FlipPhase::Inactive;
+                    cs.active_event = None;
+                    cs.pieces_since_last_event = 0;
+                    score.score += 500; // survived the event
+                }
+            }
+        }
+        FlipPhase::Inactive => {}
     }
 }
 

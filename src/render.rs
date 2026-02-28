@@ -327,7 +327,9 @@ pub fn sync_board_cells(
     chaos: Option<Res<ChaosState>>,
     mut query: Query<(&BoardCellSprite, &mut Sprite)>,
 ) {
+    use crate::state::FlipPhase;
     let bw = chaos.as_ref().map_or(false, |c| c.swap_active);
+    let flip_active = chaos.as_ref().map_or(false, |c| !matches!(c.flip_phase, FlipPhase::Inactive));
     let flash_t = if flash.timer > 0.0 {
         flash.timer / LINE_CLEAR_FLASH_DURATION
     } else {
@@ -356,7 +358,13 @@ pub fn sync_board_cells(
                     if bw { to_grayscale(c) } else { c }
                 }
             }
-            None => if bw { Color::srgb(0.05, 0.05, 0.05) } else { Color::srgb(0.12, 0.12, 0.15) },
+            None => if bw {
+                Color::srgb(0.05, 0.05, 0.05)
+            } else if flip_active {
+                Color::srgb(0.08, 0.08, 0.18) // blue-purple tint during FLIP
+            } else {
+                Color::srgb(0.12, 0.12, 0.15)
+            },
         };
         let after_line_flash = if pulse > 0.0 && flash.pending_rows.contains(&cell.row) {
             let srgba = base.to_srgba();
@@ -402,11 +410,13 @@ pub fn tick_flash_timer(
     time: Res<Time>,
     mut flash: ResMut<LineClearFlash>,
     mut board: ResMut<Board>,
+    chaos: Option<Res<ChaosState>>,
 ) {
     if flash.timer > 0.0 {
         flash.timer = (flash.timer - time.delta_secs()).max(0.0);
         if flash.timer == 0.0 && !flash.pending_rows.is_empty() {
-            board.remove_rows(&flash.pending_rows);
+            let gravity_dir = chaos.as_ref().map_or(1, |c| c.gravity_dir);
+            board.remove_rows(&flash.pending_rows, gravity_dir);
             flash.pending_rows.clear();
         }
     }
@@ -450,9 +460,10 @@ pub fn sync_ghost_pieces(
     mut ghosts: Query<(&GhostBlockSprite, &mut Transform, &mut Sprite)>,
 ) {
     let bw = chaos.as_ref().map_or(false, |c| c.swap_active);
+    let gravity_dir = chaos.as_ref().map_or(1_i32, |c| c.gravity_dir as i32);
     // Collect minimal snapshots — no heap allocation, no full ActivePiece clone.
     let snapshots: [Option<(PlayerId, PiecePos)>; 2] = {
-        let mut it = players.iter();
+        let mut it = players.iter().filter(|p| !p.waiting_for_flip);
         [
             it.next().map(|ap| (ap.player, ap.to_piece_pos())),
             it.next().map(|ap| (ap.player, ap.to_piece_pos())),
@@ -467,8 +478,12 @@ pub fn sync_ghost_pieces(
         let other = snapshots.iter().flatten().find(|(pid, _)| *pid != ghost.player).map(|(_, p)| *p);
 
         let mut ghost_row = pos.row;
-        while piece_fits(&board, pos.kind, pos.rotation, pos.col, ghost_row - 1, other) {
-            ghost_row -= 1;
+        loop {
+            let next = ghost_row - gravity_dir;
+            if !piece_fits(&board, pos.kind, pos.rotation, pos.col, next, other) {
+                break;
+            }
+            ghost_row = next;
         }
 
         let cells = collision::absolute_cells(pos.kind, pos.rotation, pos.col, ghost_row);

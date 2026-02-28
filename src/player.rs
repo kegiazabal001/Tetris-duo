@@ -12,7 +12,7 @@ use crate::config::AppConfig;
 use crate::input::{input_map_for, PieceAction};
 use crate::piece::{Rotation, TSpinType, TetrominoKind};
 use crate::constants::{ARR_RATE, DAS_DELAY, LOCK_DELAY};
-use crate::state::{ChaosState, SelectedMode};
+use crate::state::{ChaosState, FlipPhase, SelectedMode};
 use crate::scoring::ScoreBoard;
 use crate::state::GameState;
 
@@ -63,6 +63,8 @@ pub struct ActivePiece {
     pub locked: bool,
     /// True if this piece is an anchor — will survive line clears permanently.
     pub is_anchor: bool,
+    /// True while waiting for a FLIP! migration to begin/end — piece is hidden, no input.
+    pub waiting_for_flip: bool,
 }
 
 /// 7-bag randomizer per player.
@@ -164,12 +166,17 @@ fn fresh_piece(player: PlayerId, kind: TetrominoKind, chaos: Option<&ChaosState>
         },
         _ => player.spawn_col(),
     };
+    // During FLIP Active, pieces spawn near the floor (row 1) and rise upward.
+    let row = match chaos {
+        Some(cs) if cs.flip_phase == FlipPhase::Active => 1,
+        _ => VISIBLE_ROWS as i32 - 2,
+    };
     ActivePiece {
         player,
         kind,
         rotation: Rotation::R0,
         col,
-        row: VISIBLE_ROWS as i32 - 2,
+        row,
         gravity_timer: 0.0,
         lock_timer: None,
         soft_drop_held: false,
@@ -183,6 +190,7 @@ fn fresh_piece(player: PlayerId, kind: TetrominoKind, chaos: Option<&ChaosState>
         arr_right: 0.0,
         locked: false,
         is_anchor: false,
+        waiting_for_flip: false,
     }
 }
 
@@ -266,10 +274,14 @@ pub fn handle_input(
         return;
     }
     let dt = time.delta_secs();
+    let gravity_dir = chaos.as_ref().map_or(1_i32, |c| c.gravity_dir as i32);
     // Collect minimal position snapshots — no heap allocation, avoids cloning full ActivePiece.
     let snapshots = collect_snapshots(players.iter().map(|(_, ap, _)| (ap.player, ap.to_piece_pos())));
 
     for (action, mut piece, mut bag) in &mut players {
+        if piece.waiting_for_flip {
+            continue;
+        }
         let other = snapshots.iter().flatten().find(|(pid, _)| *pid != piece.player).map(|(_, pos)| *pos);
 
         // --- Hold piece ---
@@ -341,10 +353,14 @@ pub fn handle_input(
 
         if action.just_pressed(&PieceAction::HardDrop) {
             let start_row = piece.row;
-            while piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row - 1, other) {
-                piece.row -= 1;
+            loop {
+                let next = piece.row - gravity_dir;
+                if !piece_fits(&board, piece.kind, piece.rotation, piece.col, next, other) {
+                    break;
+                }
+                piece.row = next;
             }
-            score.score += (start_row - piece.row) as u32 * 2;
+            score.score += (start_row - piece.row).unsigned_abs() * 2;
             piece.last_was_rotation = false;
             piece.lock_timer = Some(0.0);
         }
@@ -367,11 +383,16 @@ pub fn apply_gravity(
     mut players: Query<&mut ActivePiece>,
     board: Res<Board>,
     mut score: ResMut<ScoreBoard>,
+    chaos: Option<Res<ChaosState>>,
 ) {
+    let gravity_dir = chaos.as_ref().map_or(1_i32, |c| c.gravity_dir as i32);
     let snapshots = collect_snapshots(players.iter().map(|ap| (ap.player, ap.to_piece_pos())));
     let normal_interval = score.gravity_interval();
 
     for mut piece in &mut players {
+        if piece.waiting_for_flip {
+            continue;
+        }
         let other = snapshots.iter().flatten().find(|(pid, _)| *pid != piece.player).map(|(_, pos)| *pos);
         let interval = if piece.soft_drop_held {
             (normal_interval / 20.0).max(0.05)
@@ -382,8 +403,9 @@ pub fn apply_gravity(
 
         if piece.gravity_timer >= interval {
             piece.gravity_timer -= interval;
-            if piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row - 1, other) {
-                piece.row -= 1;
+            let next_row = piece.row - gravity_dir; // -1 moves down (normal), +1 moves up (FLIP)
+            if piece_fits(&board, piece.kind, piece.rotation, piece.col, next_row, other) {
+                piece.row = next_row;
                 piece.lock_timer = None;
                 if piece.soft_drop_held {
                     score.score += 1;
@@ -399,12 +421,17 @@ pub fn check_lock(
     mut players: Query<&mut ActivePiece>,
     board: Res<Board>,
     mut ev_lock: EventWriter<PieceLocked>,
+    chaos: Option<Res<ChaosState>>,
 ) {
+    let gravity_dir = chaos.as_ref().map_or(1_i32, |c| c.gravity_dir as i32);
     for mut piece in &mut players {
+        if piece.waiting_for_flip {
+            continue;
+        }
         // on_ground only checks fixed board cells — not the other player's live piece.
         // A live piece should never trigger lock on a neighbour that may still move away.
-        let on_ground =
-            !piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row - 1, None);
+        let next_row = piece.row - gravity_dir; // direction the piece would move next
+        let on_ground = !piece_fits(&board, piece.kind, piece.rotation, piece.col, next_row, None);
 
         if on_ground {
             let timer = piece.lock_timer.get_or_insert(LOCK_DELAY);
@@ -426,7 +453,7 @@ pub fn lock_piece(
     mut players: Query<(&mut ActivePiece, &mut PieceBag)>,
     mut ev_lock: EventReader<PieceLocked>,
     mut ev_lines: EventWriter<LinesCleared>,
-    chaos: Option<Res<ChaosState>>,
+    mut chaos: Option<ResMut<ChaosState>>,
     selected_mode: Res<SelectedMode>,
 ) {
     // Snapshot all positions before any mutation so spawn-collision checks are stable.
@@ -471,10 +498,25 @@ pub fn lock_piece(
             // Always emit so update_score can manage the combo counter
             ev_lines.write(LinesCleared { player: piece.player, count, t_spin });
 
+            // If a FLIP phase is blocking spawns, mark the player as waiting instead of
+            // spawning a new piece.
+            let blocks = chaos.as_ref().map_or(false, |c| c.blocks_spawn());
+            if blocks {
+                if let Some(ref mut cs) = chaos {
+                    match piece.player {
+                        PlayerId::P1 => cs.flip_wait_p1_done = true,
+                        PlayerId::P2 => cs.flip_wait_p2_done = true,
+                    }
+                }
+                piece.waiting_for_flip = true;
+                piece.row = -100; // move off-screen so render hides it
+                continue;
+            }
+
             // Spawn next piece
             let next_kind = bag.pop();
             let hold = piece.hold;
-            *piece = fresh_piece(piece.player, next_kind, chaos.as_deref());
+            *piece = fresh_piece(piece.player, next_kind, chaos.as_ref().map(|c| c.as_ref()));
             piece.hold = hold; // preserve held piece across locks
             // In Chaos mode, 1-in-40 chance the new piece is an anchor
             if *selected_mode == SelectedMode::Chaos && rand::random::<f32>() < 1.0 / 40.0 {
@@ -493,6 +535,53 @@ pub fn lock_piece(
                             piece.col = nc;
                             break;
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// System: when FLIP Active phase starts, spawn fresh pieces for players that were waiting.
+pub fn spawn_after_flip(
+    mut players: Query<(&mut ActivePiece, &mut PieceBag)>,
+    chaos: Option<Res<ChaosState>>,
+    selected_mode: Res<SelectedMode>,
+    board: Res<Board>,
+) {
+    let Some(cs) = chaos else { return };
+    if cs.flip_phase != FlipPhase::Active {
+        return;
+    }
+
+    // Snapshot positions for spawn-collision avoidance.
+    let snapshots: Vec<(PlayerId, PiecePos)> = players
+        .iter()
+        .filter(|(p, _)| !p.waiting_for_flip)
+        .map(|(p, _)| (p.player, p.to_piece_pos()))
+        .collect();
+
+    for (mut piece, mut bag) in &mut players {
+        if !piece.waiting_for_flip {
+            continue;
+        }
+        let other = snapshots.iter().find(|(pid, _)| *pid != piece.player).map(|(_, pos)| *pos);
+        let next_kind = bag.pop();
+        let hold = piece.hold;
+        let hold_is_anchor = piece.hold_is_anchor;
+        *piece = fresh_piece(piece.player, next_kind, Some(&cs));
+        piece.hold = hold;
+        piece.hold_is_anchor = hold_is_anchor;
+        if *selected_mode == SelectedMode::Chaos && rand::random::<f32>() < 1.0 / 40.0 {
+            piece.is_anchor = true;
+        }
+        if let Some(other) = other {
+            if !piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row, Some(other)) {
+                for shift in [1i32, -1, 2, -2, 3, -3, 4, -4] {
+                    let nc = piece.col + shift;
+                    if piece_fits(&board, piece.kind, piece.rotation, nc, piece.row, Some(other)) {
+                        piece.col = nc;
+                        break;
                     }
                 }
             }
@@ -526,6 +615,7 @@ mod tests {
             arr_right: 0.0,
             locked: false,
             is_anchor: false,
+            waiting_for_flip: false,
         }
     }
 

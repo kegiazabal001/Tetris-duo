@@ -94,51 +94,79 @@ impl Board {
             .collect()
     }
 
-    /// Removes the specified rows and compacts the board downward.
-    /// Anchor cells in cleared rows are preserved: they are re-inserted at their
-    /// adjusted position after compaction, then settled by `apply_anchor_gravity`.
+    /// Removes the specified rows and compacts the board.
+    /// `gravity_dir`: +1 = normal (compact downward, empty rows at top);
+    ///                -1 = inverted (compact upward, empty rows at bottom).
+    /// Anchor cells in cleared rows are preserved and re-settled after compaction.
     /// Call this after the line-clear animation finishes.
-    pub fn remove_rows(&mut self, rows: &[usize]) {
-        // 1. Collect anchor cells inside the cleared rows (before we touch anything).
+    pub fn remove_rows(&mut self, rows: &[usize], gravity_dir: i8) {
+        // 1. Collect anchor cells inside the cleared rows.
         let mut saved_anchors: Vec<(usize, usize)> = Vec::new(); // (orig_row, col)
         for &r in rows {
             for c in 0..COLS {
                 if matches!(self.cells[r][c], Some(PieceColor::Anchor)) {
                     saved_anchors.push((r, c));
-                    self.cells[r][c] = None; // temporarily clear so compaction works cleanly
+                    self.cells[r][c] = None;
                 }
             }
         }
 
-        // 2. Standard compaction: skip the cleared rows.
-        let mut write = 0usize;
-        for read in 0..ROWS {
-            if !rows.contains(&read) {
-                if write != read {
-                    self.cells[write] = self.cells[read];
+        if gravity_dir >= 0 {
+            // Normal: compact downward — non-cleared rows shift toward row 0.
+            let mut write = 0usize;
+            for read in 0..ROWS {
+                if !rows.contains(&read) {
+                    if write != read {
+                        self.cells[write] = self.cells[read];
+                    }
+                    write += 1;
                 }
-                write += 1;
             }
-        }
-        for row in write..ROWS {
-            self.cells[row] = [None; COLS];
-        }
-
-        // 3. Re-insert each anchor at its adjusted row (shift down by however many
-        //    cleared rows were at or below it, then let gravity settle the rest).
-        for (orig_row, col) in saved_anchors {
-            let shift = rows.iter().filter(|&&r| r <= orig_row).count();
-            let new_row = orig_row.saturating_sub(shift);
-            // Find the first empty row at or above new_row (handles collision when
-            // two anchors in the same column are both cleared and land on the same slot).
-            let target = (new_row..ROWS).find(|&r| self.cells[r][col].is_none());
-            if let Some(r) = target {
-                self.cells[r][col] = Some(PieceColor::Anchor);
+            for row in write..ROWS {
+                self.cells[row] = [None; COLS];
             }
-        }
 
-        // 4. Settle any anchors that are now floating above empty cells.
-        self.apply_anchor_gravity();
+            // Re-insert anchors: shift down by number of cleared rows at or below.
+            for (orig_row, col) in saved_anchors {
+                let shift = rows.iter().filter(|&&r| r <= orig_row).count();
+                let new_row = orig_row.saturating_sub(shift);
+                let target = (new_row..ROWS).find(|&r| self.cells[r][col].is_none());
+                if let Some(r) = target {
+                    self.cells[r][col] = Some(PieceColor::Anchor);
+                }
+            }
+            self.apply_anchor_gravity();
+        } else {
+            // Inverted: compact upward — non-cleared rows shift toward row ROWS-1.
+            let mut write = ROWS - 1;
+            let mut wrote_any = false;
+            for read in (0..ROWS).rev() {
+                if !rows.contains(&read) {
+                    if wrote_any || write != read {
+                        self.cells[write] = self.cells[read];
+                    }
+                    wrote_any = true;
+                    if write > 0 { write -= 1; } else { break; }
+                }
+            }
+            // Clear remaining lower rows that are now empty.
+            let clear_up_to = if wrote_any { write } else { ROWS - 1 };
+            for row in 0..=clear_up_to {
+                self.cells[row] = [None; COLS];
+            }
+
+            // Re-insert anchors: shift up by number of cleared rows at or above.
+            for (orig_row, col) in saved_anchors {
+                let shift = rows.iter().filter(|&&r| r >= orig_row).count();
+                let new_row = (orig_row + shift).min(ROWS - 1);
+                // Find first empty row at or below new_row (searching downward).
+                let target = (0..=new_row).rev().find(|&r| self.cells[r][col].is_none());
+                if let Some(r) = target {
+                    self.cells[r][col] = Some(PieceColor::Anchor);
+                }
+            }
+            self.apply_anchor_gravity_up();
+        }
     }
 
     /// Drops every anchor cell one step at a time until all anchors rest on
@@ -162,6 +190,60 @@ impl Board {
                 break;
             }
         }
+    }
+
+    /// Raises every anchor cell one step at a time until all anchors rest on
+    /// a filled cell or the board ceiling. Used during inverted gravity.
+    fn apply_anchor_gravity_up(&mut self) {
+        loop {
+            let mut moved = false;
+            // Iterate top-down so an anchor can rise multiple rows per call.
+            for row in (0..ROWS - 1).rev() {
+                for col in 0..COLS {
+                    if matches!(self.cells[row][col], Some(PieceColor::Anchor))
+                        && self.cells[row + 1][col].is_none()
+                    {
+                        self.cells[row + 1][col] = Some(PieceColor::Anchor);
+                        self.cells[row][col] = None;
+                        moved = true;
+                    }
+                }
+            }
+            if !moved {
+                break;
+            }
+        }
+    }
+
+    /// Moves every non-empty cell one row in `dir` (+1 = up toward ROWS-1,
+    /// -1 = down toward 0). Returns `true` if at least one cell moved.
+    /// Used for the FLIP! migration animation.
+    pub fn apply_gravity_step(&mut self, dir: i8) -> bool {
+        let mut moved = false;
+        if dir > 0 {
+            // Move upward: iterate top-down so cells don't block each other.
+            for row in (0..ROWS - 1).rev() {
+                for col in 0..COLS {
+                    if self.cells[row][col].is_some() && self.cells[row + 1][col].is_none() {
+                        self.cells[row + 1][col] = self.cells[row][col];
+                        self.cells[row][col] = None;
+                        moved = true;
+                    }
+                }
+            }
+        } else {
+            // Move downward: iterate bottom-up so cells don't block each other.
+            for row in 1..ROWS {
+                for col in 0..COLS {
+                    if self.cells[row][col].is_some() && self.cells[row - 1][col].is_none() {
+                        self.cells[row - 1][col] = self.cells[row][col];
+                        self.cells[row][col] = None;
+                        moved = true;
+                    }
+                }
+            }
+        }
+        moved
     }
 }
 

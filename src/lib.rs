@@ -118,6 +118,8 @@ impl Plugin for TetrisDuoPlugin {
                         player::check_game_over,
                         modes::tick_mode_timer,
                         modes::tick_chaos,
+                        modes::tick_flip_migration,
+                        player::spawn_after_flip,
                         modes::check_sprint_complete,
                         modes::check_ultra_timeout,
                         render::sync_board_cells,

@@ -64,11 +64,11 @@ fn color_for(pc: PieceColor) -> Color {
     }
 }
 
-/// Bright gold for anchor pieces — clearly visible on dark backgrounds, distinct from all tetromino colors.
-fn anchor_color() -> Color { Color::srgb(1.0, 0.82, 0.05) }
+/// Quartz white for anchor pieces — neutral and distinctive during normal play.
+fn anchor_color() -> Color { Color::srgb(0.92, 0.90, 0.88) }
 
-/// Same gold in B&W blackout — saturated yellow contrasts well against the white board too.
-fn anchor_color_bw() -> Color { anchor_color() }
+/// Bright gold in B&W blackout — saturated yellow pops against the grayscale board.
+fn anchor_color_bw() -> Color { Color::srgb(1.0, 0.82, 0.05) }
 
 fn active_color(player: PlayerId, kind: TetrominoKind) -> Color {
     match player {

@@ -46,16 +46,12 @@ pub enum FlipPhase {
     /// No FLIP event active.
     #[default]
     Inactive,
-    /// Waiting for both players to place their current piece before migrating.
+    /// Waiting for both players to place their current piece before flipping.
     Waiting,
-    /// Board cells animating upward.
-    MigratingUp,
     /// Gravity inverted; active gameplay for FLIP_DURATION seconds.
     Active,
-    /// Waiting for both players to place their current piece before migrating back.
+    /// Waiting for both players to place their current piece before flipping back.
     WaitingEnd,
-    /// Board cells animating back downward.
-    MigratingDown,
 }
 
 #[derive(Resource)]
@@ -114,8 +110,7 @@ impl ChaosState {
 
     /// True if any chaos event is blocking normal piece spawning.
     pub fn blocks_spawn(&self) -> bool {
-        matches!(self.flip_phase, FlipPhase::Waiting | FlipPhase::MigratingUp
-            | FlipPhase::MigratingDown | FlipPhase::WaitingEnd)
+        matches!(self.flip_phase, FlipPhase::Waiting | FlipPhase::WaitingEnd)
     }
 }
 

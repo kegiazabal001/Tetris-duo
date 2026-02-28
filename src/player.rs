@@ -275,6 +275,11 @@ pub fn handle_input(
     }
     let dt = time.delta_secs();
     let gravity_dir = chaos.as_ref().map_or(1_i32, |c| c.gravity_dir as i32);
+    // During FLIP active the board is upside-down, so swap the rotate and soft-drop
+    // inputs: the key normally used to rotate (up) now drops, and the key normally
+    // used to soft-drop (down) now rotates. Custom bindings are respected because we
+    // remap at the action level, not at the key level.
+    let flip_active = chaos.as_ref().map_or(false, |c| c.flip_phase == crate::state::FlipPhase::Active);
     // Collect minimal position snapshots — no heap allocation, avoids cloning full ActivePiece.
     let snapshots = collect_snapshots(players.iter().map(|(_, ap, _)| (ap.player, ap.to_piece_pos())));
 
@@ -349,13 +354,19 @@ pub fn handle_input(
             piece.arr_right = 0.0;
         }
 
-        piece.soft_drop_held = action.pressed(&PieceAction::SoftDrop);
+        // During FLIP, the "up" key advances the piece and the "down" key rotates.
+        piece.soft_drop_held = if flip_active {
+            action.pressed(&PieceAction::RotateCW)
+        } else {
+            action.pressed(&PieceAction::SoftDrop)
+        };
 
         if action.just_pressed(&PieceAction::HardDrop) {
             let start_row = piece.row;
             loop {
                 let next = piece.row - gravity_dir;
-                if !piece_fits(&board, piece.kind, piece.rotation, piece.col, next, other) {
+                let past_ceiling = gravity_dir < 0 && next >= VISIBLE_ROWS as i32;
+                if past_ceiling || !piece_fits(&board, piece.kind, piece.rotation, piece.col, next, other) {
                     break;
                 }
                 piece.row = next;
@@ -365,7 +376,14 @@ pub fn handle_input(
             piece.lock_timer = Some(0.0);
         }
 
-        if action.just_pressed(&PieceAction::RotateCW) {
+        // During FLIP the soft-drop key triggers rotation and the rotate key drives
+        // the piece (handled via soft_drop_held above). CCW is unchanged.
+        let rotate_cw_pressed = if flip_active {
+            action.just_pressed(&PieceAction::SoftDrop)
+        } else {
+            action.just_pressed(&PieceAction::RotateCW)
+        };
+        if rotate_cw_pressed {
             let to = piece.rotation.cw();
             apply_rotation(&mut piece, &board, other, to, &mut ev_rotate);
         }
@@ -404,7 +422,10 @@ pub fn apply_gravity(
         if piece.gravity_timer >= interval {
             piece.gravity_timer -= interval;
             let next_row = piece.row - gravity_dir; // -1 moves down (normal), +1 moves up (FLIP)
-            if piece_fits(&board, piece.kind, piece.rotation, piece.col, next_row, other) {
+            // During FLIP (inverted gravity) the visible ceiling is VISIBLE_ROWS-1.
+            // Prevent pieces from drifting into the hidden spawn rows above it.
+            let past_ceiling = gravity_dir < 0 && next_row >= VISIBLE_ROWS as i32;
+            if !past_ceiling && piece_fits(&board, piece.kind, piece.rotation, piece.col, next_row, other) {
                 piece.row = next_row;
                 piece.lock_timer = None;
                 if piece.soft_drop_held {
@@ -431,7 +452,8 @@ pub fn check_lock(
         // on_ground only checks fixed board cells — not the other player's live piece.
         // A live piece should never trigger lock on a neighbour that may still move away.
         let next_row = piece.row - gravity_dir; // direction the piece would move next
-        let on_ground = !piece_fits(&board, piece.kind, piece.rotation, piece.col, next_row, None);
+        let past_ceiling = gravity_dir < 0 && next_row >= VISIBLE_ROWS as i32;
+        let on_ground = past_ceiling || !piece_fits(&board, piece.kind, piece.rotation, piece.col, next_row, None);
 
         if on_ground {
             let timer = piece.lock_timer.get_or_insert(LOCK_DELAY);
@@ -542,7 +564,7 @@ pub fn lock_piece(
     }
 }
 
-/// System: when FLIP Active phase starts, spawn fresh pieces for players that were waiting.
+/// System: spawns fresh pieces for players waiting on a FLIP! phase transition (Active or end).
 pub fn spawn_after_flip(
     mut players: Query<(&mut ActivePiece, &mut PieceBag)>,
     chaos: Option<Res<ChaosState>>,

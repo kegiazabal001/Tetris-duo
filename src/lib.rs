@@ -32,6 +32,7 @@ impl Plugin for TetrisDuoPlugin {
             .init_resource::<InputGrace>()
             .init_resource::<render::LineClearFlash>()
             .init_resource::<render::PieceLockFlash>()
+            .init_resource::<render::FlipFlash>()
             .add_event::<QuitToMenu>()
             .init_resource::<SelectedMode>()
             .init_resource::<RebindTarget>()
@@ -129,6 +130,7 @@ impl Plugin for TetrisDuoPlugin {
                         ui::update_hud,
                         render::tick_flash_timer,
                         render::tick_lock_flash,
+                        render::tick_flip_flash,
                         render::tick_popups,
                     ),
                 )

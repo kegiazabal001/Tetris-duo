@@ -5,8 +5,9 @@ use crate::config::AppConfig;
 use crate::player::{PieceLocked, PlayerId};
 use crate::scoring::ScoreBoard;
 use crate::state::{ChaosEvent, ChaosState, FlipPhase, GameState, SelectedMode, CHAOS_PIECE_THRESHOLD};
+use crate::render::FlipFlash;
 
-pub use crate::constants::{FLIP_DURATION, FLIP_MIGRATION_INTERVAL, SPRINT_GOAL, ULTRA_DURATION};
+pub use crate::constants::{FLIP_DURATION, SPRINT_GOAL, ULTRA_DURATION};
 
 #[derive(Resource, Default)]
 pub struct ModeTimer {
@@ -118,11 +119,12 @@ pub fn on_piece_locked_chaos(
 
 /// Drives the FLIP! event state machine every frame.
 pub fn tick_flip_migration(
-    mode:     Res<SelectedMode>,
-    time:     Res<Time>,
-    mut cs:   ResMut<ChaosState>,
-    mut board: ResMut<Board>,
-    mut score: ResMut<ScoreBoard>,
+    mode:       Res<SelectedMode>,
+    time:       Res<Time>,
+    mut cs:     ResMut<ChaosState>,
+    mut board:  ResMut<Board>,
+    mut score:  ResMut<ScoreBoard>,
+    mut flash:  ResMut<FlipFlash>,
 ) {
     if *mode != SelectedMode::Chaos { return; }
     if cs.active_event != Some(ChaosEvent::Flip) { return; }
@@ -132,31 +134,14 @@ pub fn tick_flip_migration(
     match cs.flip_phase {
         FlipPhase::Waiting => {
             if cs.flip_wait_p1_done && cs.flip_wait_p2_done {
-                cs.flip_phase = FlipPhase::MigratingUp;
-                cs.flip_timer = 0.0;
-            }
-        }
-        FlipPhase::MigratingUp => {
-            cs.flip_timer += dt;
-            if cs.flip_timer >= FLIP_MIGRATION_INTERVAL {
-                cs.flip_timer -= FLIP_MIGRATION_INTERVAL;
-                let moved = board.apply_gravity_step(1);
-                // Clear any full rows formed by compaction against the ceiling.
-                let full = board.detect_full_rows();
-                if !full.is_empty() {
-                    let n = full.len() as u32;
-                    board.remove_rows(&full, -1); // compact toward ceiling (empty rows below)
-                    score.score += n * 100; // bonus for lines cleared during migration
-                }
-                if !moved {
-                    // All cells have reached the ceiling — begin Active phase.
-                    cs.flip_phase = FlipPhase::Active;
-                    cs.gravity_dir = -1;
-                    cs.flip_timer = FLIP_DURATION;
-                    // Reset waiting flags for WaitingEnd.
-                    cs.flip_wait_p1_done = false;
-                    cs.flip_wait_p2_done = false;
-                }
+                // Mirror the board instantly and begin inverted-gravity gameplay.
+                board.flip_vertical();
+                flash.trigger();
+                cs.flip_phase = FlipPhase::Active;
+                cs.gravity_dir = -1;
+                cs.flip_timer = FLIP_DURATION;
+                cs.flip_wait_p1_done = false;
+                cs.flip_wait_p2_done = false;
             }
         }
         FlipPhase::Active => {
@@ -167,30 +152,14 @@ pub fn tick_flip_migration(
         }
         FlipPhase::WaitingEnd => {
             if cs.flip_wait_p1_done && cs.flip_wait_p2_done {
-                cs.flip_phase = FlipPhase::MigratingDown;
-                cs.flip_timer = 0.0;
-                cs.gravity_dir = 1; // restore normal gravity for migration
-            }
-        }
-        FlipPhase::MigratingDown => {
-            cs.flip_timer += dt;
-            if cs.flip_timer >= FLIP_MIGRATION_INTERVAL {
-                cs.flip_timer -= FLIP_MIGRATION_INTERVAL;
-                let moved = board.apply_gravity_step(-1);
-                // Clear any full rows formed by compaction toward the floor.
-                let full = board.detect_full_rows();
-                if !full.is_empty() {
-                    let n = full.len() as u32;
-                    board.remove_rows(&full, 1); // compact toward floor (empty rows above)
-                    score.score += n * 100;
-                }
-                if !moved {
-                    // All cells have settled — event complete.
-                    cs.flip_phase = FlipPhase::Inactive;
-                    cs.active_event = None;
-                    cs.pieces_since_last_event = 0;
-                    score.score += 500; // survived the event
-                }
+                // Mirror the board back to restore normal orientation.
+                board.flip_vertical();
+                flash.trigger();
+                cs.gravity_dir = 1;
+                cs.flip_phase = FlipPhase::Inactive;
+                cs.active_event = None;
+                cs.pieces_since_last_event = 0;
+                score.score += 500; // survived the event
             }
         }
         FlipPhase::Inactive => {}

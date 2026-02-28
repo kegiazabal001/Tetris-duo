@@ -9,7 +9,6 @@ pub const ULTRA_DURATION: f32 = 120.0;
 
 // Chaos mode - FLIP event
 pub const FLIP_DURATION: f32 = 10.0;
-pub const FLIP_MIGRATION_INTERVAL: f32 = 0.08; // seconds per migration row step
 
 // Visual constants
 pub const CELL_SIZE: f32 = 28.0;

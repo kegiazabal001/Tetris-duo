@@ -98,6 +98,20 @@ pub struct PieceLockFlash {
     pub cells: Vec<(usize, usize)>,
 }
 
+/// Full-board white flash that plays when the FLIP! event mirrors the board.
+#[derive(Resource, Default)]
+pub struct FlipFlash {
+    pub timer: f32,
+}
+
+pub const FLIP_FLASH_DURATION: f32 = 0.4;
+
+impl FlipFlash {
+    pub fn trigger(&mut self) {
+        self.timer = FLIP_FLASH_DURATION;
+    }
+}
+
 // ── Components ────────────────────────────────────────────────────────────────
 
 #[derive(Component)]
@@ -324,12 +338,15 @@ pub fn sync_board_cells(
     board: Res<Board>,
     flash: Res<LineClearFlash>,
     lock_flash: Res<PieceLockFlash>,
+    flip_flash: Res<FlipFlash>,
     chaos: Option<Res<ChaosState>>,
     mut query: Query<(&BoardCellSprite, &mut Sprite)>,
 ) {
     use crate::state::FlipPhase;
     let bw = chaos.as_ref().map_or(false, |c| c.swap_active);
     let flip_active = chaos.as_ref().map_or(false, |c| !matches!(c.flip_phase, FlipPhase::Inactive));
+    // Fade from white to transparent during the flip flash.
+    let flip_t = (flip_flash.timer / FLIP_FLASH_DURATION).clamp(0.0, 1.0);
     let flash_t = if flash.timer > 0.0 {
         flash.timer / LINE_CLEAR_FLASH_DURATION
     } else {
@@ -377,7 +394,7 @@ pub fn sync_board_cells(
         } else {
             base
         };
-        sprite.color = if lock_t > 0.0 && lock_flash.cells.contains(&(cell.col, cell.row)) {
+        let after_lock = if lock_t > 0.0 && lock_flash.cells.contains(&(cell.col, cell.row)) {
             let srgba = after_line_flash.to_srgba();
             Color::srgba(
                 srgba.red + (1.0 - srgba.red) * lock_t,
@@ -387,6 +404,17 @@ pub fn sync_board_cells(
             )
         } else {
             after_line_flash
+        };
+        sprite.color = if flip_t > 0.0 {
+            let srgba = after_lock.to_srgba();
+            Color::srgba(
+                srgba.red + (1.0 - srgba.red) * flip_t,
+                srgba.green + (1.0 - srgba.green) * flip_t,
+                srgba.blue + (1.0 - srgba.blue) * flip_t,
+                srgba.alpha,
+            )
+        } else {
+            after_lock
         };
     }
 }
@@ -595,6 +623,13 @@ pub fn tick_lock_flash(time: Res<Time>, mut lock_flash: ResMut<PieceLockFlash>) 
         if lock_flash.timer == 0.0 {
             lock_flash.cells.clear();
         }
+    }
+}
+
+/// Tick the flip flash timer.
+pub fn tick_flip_flash(time: Res<Time>, mut flip_flash: ResMut<FlipFlash>) {
+    if flip_flash.timer > 0.0 {
+        flip_flash.timer = (flip_flash.timer - time.delta_secs()).max(0.0);
     }
 }
 

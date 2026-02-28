@@ -145,7 +145,7 @@ pub fn tick_flip_migration(
                 let full = board.detect_full_rows();
                 if !full.is_empty() {
                     let n = full.len() as u32;
-                    board.remove_rows(&full, 1);
+                    board.remove_rows(&full, -1); // compact toward ceiling (empty rows below)
                     score.score += n * 100; // bonus for lines cleared during migration
                 }
                 if !moved {
@@ -181,7 +181,7 @@ pub fn tick_flip_migration(
                 let full = board.detect_full_rows();
                 if !full.is_empty() {
                     let n = full.len() as u32;
-                    board.remove_rows(&full, -1);
+                    board.remove_rows(&full, 1); // compact toward floor (empty rows above)
                     score.score += n * 100;
                 }
                 if !moved {

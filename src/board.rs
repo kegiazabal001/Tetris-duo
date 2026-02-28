@@ -197,7 +197,7 @@ impl Board {
     fn apply_anchor_gravity_up(&mut self) {
         loop {
             let mut moved = false;
-            // Iterate top-down so an anchor can rise multiple rows per call.
+            // Iterate high-to-low index so rising anchors don't block each other in the same pass.
             for row in (0..ROWS - 1).rev() {
                 for col in 0..COLS {
                     if matches!(self.cells[row][col], Some(PieceColor::Anchor))

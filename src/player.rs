@@ -550,7 +550,7 @@ pub fn spawn_after_flip(
     board: Res<Board>,
 ) {
     let Some(cs) = chaos else { return };
-    if cs.flip_phase != FlipPhase::Active {
+    if !matches!(cs.flip_phase, FlipPhase::Active | FlipPhase::Inactive) {
         return;
     }
 

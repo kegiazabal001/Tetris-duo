@@ -13,21 +13,23 @@ pub enum PieceColor {
     Player1(TetrominoKind),
     Player2(TetrominoKind),
     /// Anchor piece — stays in the board permanently (survives line clears).
-    Anchor,
+    /// The u8 ID groups the 4 cells that belong to the same locked anchor piece,
+    /// so `remove_rows` can move them as a rigid body.
+    Anchor(u8),
 }
 
 impl PieceColor {
     pub fn kind(self) -> TetrominoKind {
         match self {
             PieceColor::Player1(k) | PieceColor::Player2(k) => k,
-            PieceColor::Anchor => TetrominoKind::I, // fallback, unused visually
+            PieceColor::Anchor(_) => TetrominoKind::I, // fallback, unused visually
         }
     }
     pub fn is_player1(self) -> bool {
         matches!(self, PieceColor::Player1(_))
     }
     pub fn is_anchor(self) -> bool {
-        matches!(self, PieceColor::Anchor)
+        matches!(self, PieceColor::Anchor(_))
     }
 }
 
@@ -95,22 +97,25 @@ impl Board {
     }
 
     /// Removes the specified rows and compacts the board downward (normal gravity).
-    /// Anchor cells in cleared rows are preserved and re-settled after compaction.
+    /// Anchor pieces survive line clears: all cells of each anchor piece (identified
+    /// by their shared ID) move as a rigid body so the shape is always preserved.
     /// Call this after the line-clear animation finishes.
     pub fn remove_rows(&mut self, rows: &[usize]) {
-        // 1. Collect ALL anchor cells (from every row — cleared or not) and remove
-        //    them before compaction so the whole group moves as a rigid body.
-        let mut saved_anchors: Vec<(usize, usize)> = Vec::new(); // (orig_row, col)
+        use std::collections::HashMap;
+
+        // 1. Collect ALL anchor cells (from every row — cleared or not), remove
+        //    them before compaction, and group them by anchor piece ID.
+        let mut groups: HashMap<u8, Vec<(usize, usize)>> = HashMap::new(); // id → [(row, col)]
         for r in 0..ROWS {
             for c in 0..COLS {
-                if matches!(self.cells[r][c], Some(PieceColor::Anchor)) {
-                    saved_anchors.push((r, c));
+                if let Some(PieceColor::Anchor(id)) = self.cells[r][c] {
+                    groups.entry(id).or_default().push((r, c));
                     self.cells[r][c] = None;
                 }
             }
         }
 
-        // Compact downward — non-cleared rows shift toward row 0.
+        // 2. Compact downward — non-cleared rows shift toward row 0.
         let mut write = 0usize;
         for read in 0..ROWS {
             if !rows.contains(&read) {
@@ -124,30 +129,40 @@ impl Board {
             self.cells[row] = [None; COLS];
         }
 
-        // Re-insert anchors at their compacted positions without extra gravity,
-        // so the piece shape is preserved.
-        // - Anchors NOT in a cleared row shift by the number of cleared rows
-        //   strictly below them (same amount as the surrounding board cells).
-        // - Anchors IN a cleared row shift by the number of cleared rows at-or-
-        //   below them, landing just below the cleared region.
-        for (orig_row, col) in saved_anchors {
-            let in_cleared = rows.contains(&orig_row);
-            let shift = if in_cleared {
-                rows.iter().filter(|&&r| r <= orig_row).count()
+        // 3. Re-insert each anchor piece as a rigid body.
+        //
+        //    Every piece moves by one uniform `group_shift` so its shape is preserved.
+        //
+        //    group_shift = number of cleared rows strictly below the piece's lowest
+        //    (minimum-index) row. This is identical to the shift that regular, non-
+        //    cleared cells at the same row would receive — it keeps the anchor in sync
+        //    with the board compaction.
+        //
+        //    Cells that were on cleared rows shift along with the rest of the piece
+        //    (their row index moves down by the same amount), so no cell is ever lost
+        //    and consecutive cleared-row cells can no longer collide.
+        //
+        //    If ALL cells of a piece happen to be in cleared rows, group_shift uses
+        //    `≤ max_row` instead of `< min_row` so the piece lands just below the
+        //    cleared region rather than staying in place.
+        for (id, cells) in &groups {
+            let min_row = cells.iter().map(|&(r, _)| r).min().unwrap();
+            let max_row = cells.iter().map(|&(r, _)| r).max().unwrap();
+            let all_cleared = cells.iter().all(|&(r, _)| rows.contains(&r));
+
+            let group_shift = if all_cleared {
+                rows.iter().filter(|&&r| r <= max_row).count()
             } else {
-                rows.iter().filter(|&&r| r < orig_row).count()
+                rows.iter().filter(|&&r| r < min_row).count()
             };
-            let new_row = orig_row.saturating_sub(shift);
-            // Place directly — no upward search. For non-cleared-row anchors new_row
-            // is guaranteed empty after compaction. For cleared-row anchors, multiple
-            // cells may map to the same new_row (last write wins, losing at most one
-            // cell per column), which is far better than the old anti-gravity float
-            // that caused cells to scatter toward the top of the board.
-            if new_row < ROWS {
-                self.cells[new_row][col] = Some(PieceColor::Anchor);
+
+            for &(orig_row, col) in cells {
+                let new_row = orig_row.saturating_sub(group_shift);
+                if new_row < ROWS {
+                    self.cells[new_row][col] = Some(PieceColor::Anchor(*id));
+                }
             }
         }
-        // No apply_anchor_gravity() — preserves the anchor piece shape.
     }
 
     /// Drops every anchor cell one step at a time until all anchors rest on
@@ -158,12 +173,12 @@ impl Board {
             // Iterate from row 1 upward so an anchor can fall multiple rows per call.
             for row in 1..ROWS {
                 for col in 0..COLS {
-                    if matches!(self.cells[row][col], Some(PieceColor::Anchor))
-                        && self.cells[row - 1][col].is_none()
-                    {
-                        self.cells[row - 1][col] = Some(PieceColor::Anchor);
-                        self.cells[row][col] = None;
-                        moved = true;
+                    if let Some(PieceColor::Anchor(id)) = self.cells[row][col] {
+                        if self.cells[row - 1][col].is_none() {
+                            self.cells[row - 1][col] = Some(PieceColor::Anchor(id));
+                            self.cells[row][col] = None;
+                            moved = true;
+                        }
                     }
                 }
             }

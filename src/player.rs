@@ -456,9 +456,16 @@ pub fn lock_piece(
                 TSpinType::None
             };
 
-            // Write cells to board with per-piece color
+            // Write cells to board with per-piece color.
+            // Anchor pieces get a unique 8-bit ID so remove_rows() can move all 4
+            // cells as a rigid body (preserving piece shape across line clears).
+            static NEXT_ANCHOR_ID: std::sync::atomic::AtomicU8 =
+                std::sync::atomic::AtomicU8::new(1);
             let cell_color = if piece.is_anchor {
-                PieceColor::Anchor
+                let id = NEXT_ANCHOR_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                // Avoid 0 (reserved as "unset" sentinel) and wrap safely.
+                let id = if id == 0 { NEXT_ANCHOR_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed) } else { id };
+                PieceColor::Anchor(id)
             } else {
                 match piece.player {
                     PlayerId::P1 => PieceColor::Player1(piece.kind),

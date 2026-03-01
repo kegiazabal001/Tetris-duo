@@ -60,7 +60,7 @@ fn color_for(pc: PieceColor) -> Color {
     match pc {
         PieceColor::Player1(k) => kind_color_vivid(k),
         PieceColor::Player2(k) => kind_color_pastel(k),
-        PieceColor::Anchor => anchor_color(),
+        PieceColor::Anchor(_) => anchor_color(),
     }
 }
 

@@ -138,12 +138,13 @@ impl Board {
                 rows.iter().filter(|&&r| r < orig_row).count()
             };
             let new_row = orig_row.saturating_sub(shift);
-            // For non-cleared-row anchors, new_row is guaranteed empty (we removed
-            // the anchor before compaction, leaving a hole in that row).
-            // For cleared-row anchors, search upward for the first empty slot.
-            let target = (new_row..ROWS).find(|&r| self.cells[r][col].is_none());
-            if let Some(r) = target {
-                self.cells[r][col] = Some(PieceColor::Anchor);
+            // Place directly — no upward search. For non-cleared-row anchors new_row
+            // is guaranteed empty after compaction. For cleared-row anchors, multiple
+            // cells may map to the same new_row (last write wins, losing at most one
+            // cell per column), which is far better than the old anti-gravity float
+            // that caused cells to scatter toward the top of the board.
+            if new_row < ROWS {
+                self.cells[new_row][col] = Some(PieceColor::Anchor);
             }
         }
         // No apply_anchor_gravity() — preserves the anchor piece shape.

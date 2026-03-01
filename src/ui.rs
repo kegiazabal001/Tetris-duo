@@ -518,7 +518,10 @@ pub fn pause_input(
 ) {
     if keyboard.just_pressed(KeyCode::Escape) {
         match state.get() {
-            GameState::Playing => next_state.set(GameState::Paused),
+            GameState::Playing => {
+                is_resume.0 = true;
+                next_state.set(GameState::Paused);
+            }
             GameState::Paused => {
                 is_resume.0 = true;
                 next_state.set(GameState::Playing);

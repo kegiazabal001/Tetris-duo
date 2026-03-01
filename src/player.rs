@@ -275,11 +275,6 @@ pub fn handle_input(
     }
     let dt = time.delta_secs();
     let gravity_dir = chaos.as_ref().map_or(1_i32, |c| c.gravity_dir as i32);
-    // During FLIP active the board is upside-down, so swap the rotate and soft-drop
-    // inputs: the key normally used to rotate (up) now drops, and the key normally
-    // used to soft-drop (down) now rotates. Custom bindings are respected because we
-    // remap at the action level, not at the key level.
-    let flip_active = chaos.as_ref().map_or(false, |c| c.flip_phase == crate::state::FlipPhase::Active);
     // Collect minimal position snapshots — no heap allocation, avoids cloning full ActivePiece.
     let snapshots = collect_snapshots(players.iter().map(|(_, ap, _)| (ap.player, ap.to_piece_pos())));
 
@@ -354,12 +349,7 @@ pub fn handle_input(
             piece.arr_right = 0.0;
         }
 
-        // During FLIP, the "up" key advances the piece and the "down" key rotates.
-        piece.soft_drop_held = if flip_active {
-            action.pressed(&PieceAction::RotateCW)
-        } else {
-            action.pressed(&PieceAction::SoftDrop)
-        };
+        piece.soft_drop_held = action.pressed(&PieceAction::SoftDrop);
 
         if action.just_pressed(&PieceAction::HardDrop) {
             let start_row = piece.row;
@@ -376,14 +366,7 @@ pub fn handle_input(
             piece.lock_timer = Some(0.0);
         }
 
-        // During FLIP the soft-drop key triggers rotation and the rotate key drives
-        // the piece (handled via soft_drop_held above). CCW is unchanged.
-        let rotate_cw_pressed = if flip_active {
-            action.just_pressed(&PieceAction::SoftDrop)
-        } else {
-            action.just_pressed(&PieceAction::RotateCW)
-        };
-        if rotate_cw_pressed {
+        if action.just_pressed(&PieceAction::RotateCW) {
             let to = piece.rotation.cw();
             apply_rotation(&mut piece, &board, other, to, &mut ev_rotate);
         }

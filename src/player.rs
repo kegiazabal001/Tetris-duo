@@ -2,19 +2,19 @@ use std::collections::VecDeque;
 
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
-use rand::seq::SliceRandom;
 use rand::rngs::StdRng;
+use rand::seq::SliceRandom;
 use rand::SeedableRng;
 
 use crate::board::{Board, PieceColor, COLS, VISIBLE_ROWS};
 use crate::collision::{self, piece_fits, PiecePos};
 use crate::config::AppConfig;
+use crate::constants::{ARR_RATE, DAS_DELAY, LOCK_DELAY};
 use crate::input::{input_map_for, PieceAction};
 use crate::piece::{Rotation, TSpinType, TetrominoKind};
-use crate::constants::{ARR_RATE, DAS_DELAY, LOCK_DELAY};
-use crate::state::{ChaosState, SelectedMode};
 use crate::scoring::ScoreBoard;
 use crate::state::GameState;
+use crate::state::{ChaosState, SelectedMode};
 
 /// Blocks input processing for one frame after entering Playing state,
 /// preventing the Space/Enter press used to start/restart the game from
@@ -79,7 +79,11 @@ impl PieceBag {
     }
 
     pub fn new_with_rng(player: PlayerId, rng: StdRng) -> Self {
-        let mut bag = Self { player, queue: VecDeque::new(), rng };
+        let mut bag = Self {
+            player,
+            queue: VecDeque::new(),
+            rng,
+        };
         bag.refill();
         bag.refill(); // start with 14 pieces
         bag
@@ -96,7 +100,9 @@ impl PieceBag {
             self.refill();
         }
         debug_assert!(!self.queue.is_empty());
-        self.queue.pop_front().expect("PieceBag::pop: la cola está vacía; esto es un bug")
+        self.queue
+            .pop_front()
+            .expect("PieceBag::pop: la cola está vacía; esto es un bug")
     }
 
     pub fn peek(&self) -> TetrominoKind {
@@ -107,7 +113,11 @@ impl PieceBag {
     /// Returns the next N pieces as a stack-allocated array.
     /// Panics if the queue has fewer than N pieces (guaranteed not to happen in normal play).
     pub fn peek_n<const N: usize>(&self) -> [TetrominoKind; N] {
-        debug_assert!(N <= self.queue.len(), "peek_n: N={N} excede cola de len={}", self.queue.len());
+        debug_assert!(
+            N <= self.queue.len(),
+            "peek_n: N={N} excede cola de len={}",
+            self.queue.len()
+        );
         std::array::from_fn(|i| self.queue[i])
     }
 }
@@ -137,7 +147,9 @@ pub struct GameOverEvent;
 
 /// Collects position snapshots for both players from any query iterator
 /// that yields `(PlayerId, PiecePos)` pairs.
-pub fn collect_snapshots(mut iter: impl Iterator<Item = (PlayerId, PiecePos)>) -> [Option<(PlayerId, PiecePos)>; 2] {
+pub fn collect_snapshots(
+    mut iter: impl Iterator<Item = (PlayerId, PiecePos)>,
+) -> [Option<(PlayerId, PiecePos)>; 2] {
     [iter.next(), iter.next()]
 }
 
@@ -152,7 +164,12 @@ impl ActivePiece {
 
     /// Returns the minimal position snapshot needed for collision checks.
     pub fn to_piece_pos(&self) -> PiecePos {
-        PiecePos { kind: self.kind, rotation: self.rotation, col: self.col, row: self.row }
+        PiecePos {
+            kind: self.kind,
+            rotation: self.rotation,
+            col: self.col,
+            row: self.row,
+        }
     }
 }
 
@@ -189,8 +206,20 @@ fn fresh_piece(player: PlayerId, kind: TetrominoKind, chaos: Option<&ChaosState>
 /// Attempts to move a piece laterally by `dc` columns.
 /// On success updates col, clears `last_was_rotation`, and resets the lock timer.
 /// Returns true if the move succeeded.
-fn try_lateral_move(piece: &mut ActivePiece, board: &Board, other: Option<PiecePos>, dc: i32) -> bool {
-    if piece_fits(board, piece.kind, piece.rotation, piece.col + dc, piece.row, other) {
+fn try_lateral_move(
+    piece: &mut ActivePiece,
+    board: &Board,
+    other: Option<PiecePos>,
+    dc: i32,
+) -> bool {
+    if piece_fits(
+        board,
+        piece.kind,
+        piece.rotation,
+        piece.col + dc,
+        piece.row,
+        other,
+    ) {
         piece.col += dc;
         piece.last_was_rotation = false;
         piece.reset_lock_if_active();
@@ -209,15 +238,23 @@ fn apply_rotation(
     to: Rotation,
     ev_rotate: &mut EventWriter<PieceRotated>,
 ) {
-    if let Some((nc, nr, nrot)) =
-        collision::try_rotate(board, piece.kind, piece.rotation, to, piece.col, piece.row, other)
-    {
+    if let Some((nc, nr, nrot)) = collision::try_rotate(
+        board,
+        piece.kind,
+        piece.rotation,
+        to,
+        piece.col,
+        piece.row,
+        other,
+    ) {
         piece.col = nc;
         piece.row = nr;
         piece.rotation = nrot;
         piece.last_was_rotation = true;
         piece.reset_lock_if_active();
-        ev_rotate.write(PieceRotated { player: piece.player });
+        ev_rotate.write(PieceRotated {
+            player: piece.player,
+        });
     }
 }
 
@@ -242,6 +279,7 @@ pub fn despawn_players(mut commands: Commands, query: Query<Entity, With<ActiveP
 }
 
 /// System: handle input for each player.
+#[allow(clippy::too_many_arguments)]
 pub fn handle_input(
     time: Res<Time>,
     mut players: Query<(&ActionState<PieceAction>, &mut ActivePiece, &mut PieceBag)>,
@@ -267,10 +305,18 @@ pub fn handle_input(
     }
     let dt = time.delta_secs();
     // Collect minimal position snapshots — no heap allocation, avoids cloning full ActivePiece.
-    let snapshots = collect_snapshots(players.iter().map(|(_, ap, _)| (ap.player, ap.to_piece_pos())));
+    let snapshots = collect_snapshots(
+        players
+            .iter()
+            .map(|(_, ap, _)| (ap.player, ap.to_piece_pos())),
+    );
 
     for (action, mut piece, mut bag) in &mut players {
-        let other = snapshots.iter().flatten().find(|(pid, _)| *pid != piece.player).map(|(_, pos)| *pos);
+        let other = snapshots
+            .iter()
+            .flatten()
+            .find(|(pid, _)| *pid != piece.player)
+            .map(|(_, pos)| *pos);
 
         // --- Hold piece ---
         if action.just_pressed(&PieceAction::Hold) && !piece.hold_used && !piece.is_anchor {
@@ -376,7 +422,11 @@ pub fn apply_gravity(
     let normal_interval = score.gravity_interval();
 
     for mut piece in &mut players {
-        let other = snapshots.iter().flatten().find(|(pid, _)| *pid != piece.player).map(|(_, pos)| *pos);
+        let other = snapshots
+            .iter()
+            .flatten()
+            .find(|(pid, _)| *pid != piece.player)
+            .map(|(_, pos)| *pos);
         let interval = if piece.soft_drop_held {
             (normal_interval / 20.0).max(0.05)
         } else {
@@ -387,7 +437,14 @@ pub fn apply_gravity(
         if piece.gravity_timer >= interval {
             piece.gravity_timer -= interval;
             let next_row = piece.row - 1;
-            if piece_fits(&board, piece.kind, piece.rotation, piece.col, next_row, other) {
+            if piece_fits(
+                &board,
+                piece.kind,
+                piece.rotation,
+                piece.col,
+                next_row,
+                other,
+            ) {
                 piece.row = next_row;
                 piece.lock_timer = None;
                 if piece.soft_drop_held {
@@ -408,15 +465,26 @@ pub fn check_lock(
     for mut piece in &mut players {
         // on_ground only checks fixed board cells — not the other player's live piece.
         // A live piece should never trigger lock on a neighbour that may still move away.
-        let on_ground = !piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row - 1, None);
+        let on_ground = !piece_fits(
+            &board,
+            piece.kind,
+            piece.rotation,
+            piece.col,
+            piece.row - 1,
+            None,
+        );
 
         if on_ground {
             let timer = piece.lock_timer.get_or_insert(LOCK_DELAY);
             *timer -= time.delta_secs();
             if *timer <= 0.0 && !piece.locked {
                 piece.locked = true;
-                let cells = collision::absolute_cells(piece.kind, piece.rotation, piece.col, piece.row);
-                ev_lock.write(PieceLocked { player: piece.player, cells });
+                let cells =
+                    collision::absolute_cells(piece.kind, piece.rotation, piece.col, piece.row);
+                ev_lock.write(PieceLocked {
+                    player: piece.player,
+                    cells,
+                });
             }
         } else {
             piece.lock_timer = None;
@@ -440,7 +508,8 @@ pub fn lock_piece(
         .collect();
 
     for event in ev_lock.read() {
-        let other_pos = pre_positions.iter()
+        let other_pos = pre_positions
+            .iter()
             .find(|(pid, _)| *pid != event.player)
             .map(|(_, pos)| *pos);
 
@@ -464,7 +533,11 @@ pub fn lock_piece(
             let cell_color = if piece.is_anchor {
                 let id = NEXT_ANCHOR_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 // Avoid 0 (reserved as "unset" sentinel) and wrap safely.
-                let id = if id == 0 { NEXT_ANCHOR_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed) } else { id };
+                let id = if id == 0 {
+                    NEXT_ANCHOR_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                } else {
+                    id
+                };
                 PieceColor::Anchor(id)
             } else {
                 match piece.player {
@@ -472,7 +545,9 @@ pub fn lock_piece(
                     PlayerId::P2 => PieceColor::Player2(piece.kind),
                 }
             };
-            for (cx, cy) in collision::absolute_cells(piece.kind, piece.rotation, piece.col, piece.row) {
+            for (cx, cy) in
+                collision::absolute_cells(piece.kind, piece.rotation, piece.col, piece.row)
+            {
                 board.set(cx, cy, cell_color);
             }
 
@@ -480,14 +555,18 @@ pub fn lock_piece(
             let count = board.detect_full_rows().len() as u32;
 
             // Always emit so update_score can manage the combo counter
-            ev_lines.write(LinesCleared { player: piece.player, count, t_spin });
+            ev_lines.write(LinesCleared {
+                player: piece.player,
+                count,
+                t_spin,
+            });
 
             // Spawn next piece
             let next_kind = bag.pop();
             let hold = piece.hold;
             *piece = fresh_piece(piece.player, next_kind, chaos.as_ref().map(|c| c.as_ref()));
             piece.hold = hold; // preserve held piece across locks
-            // In Chaos mode, 1-in-40 chance the new piece is an anchor
+                               // In Chaos mode, 1-in-40 chance the new piece is an anchor
             if *selected_mode == SelectedMode::Chaos && rand::random::<f32>() < 1.0 / 40.0 {
                 piece.is_anchor = true;
             }
@@ -497,10 +576,24 @@ pub fn lock_piece(
             // Try lateral shifts until we find a free column (board-only check handles
             // the real stack-overflow game over via check_game_over).
             if let Some(other) = other_pos {
-                if !piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row, Some(other)) {
+                if !piece_fits(
+                    &board,
+                    piece.kind,
+                    piece.rotation,
+                    piece.col,
+                    piece.row,
+                    Some(other),
+                ) {
                     for shift in [1i32, -1, 2, -2, 3, -3, 4, -4] {
                         let nc = piece.col + shift;
-                        if piece_fits(&board, piece.kind, piece.rotation, nc, piece.row, Some(other)) {
+                        if piece_fits(
+                            &board,
+                            piece.kind,
+                            piece.rotation,
+                            nc,
+                            piece.row,
+                            Some(other),
+                        ) {
                             piece.col = nc;
                             break;
                         }
@@ -510,7 +603,6 @@ pub fn lock_piece(
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -555,7 +647,7 @@ mod tests {
         // lock_timer should be reset to LOCK_DELAY.
         let mut piece = make_active(PlayerId::P1, TetrominoKind::T, 5, 1);
         piece.lock_timer = Some(0.2); // partially elapsed
-        // Simulate what handle_input does on a lateral move when lock_timer is Some
+                                      // Simulate what handle_input does on a lateral move when lock_timer is Some
         if piece.lock_timer.is_some() {
             piece.lock_timer = Some(LOCK_DELAY);
         }
@@ -594,7 +686,10 @@ mod tests {
                 events_fired += 1;
             }
         }
-        assert_eq!(events_fired, 1, "PieceLocked should only fire once per piece");
+        assert_eq!(
+            events_fired, 1,
+            "PieceLocked should only fire once per piece"
+        );
     }
 
     #[test]
@@ -627,10 +722,21 @@ mod tests {
         let col = piece.col;
         let row = piece.row;
         for (dc, dr) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
-            board.set(col + dc, row + dr, crate::board::PieceColor::Player1(TetrominoKind::I));
+            board.set(
+                col + dc,
+                row + dr,
+                crate::board::PieceColor::Player1(TetrominoKind::I),
+            );
         }
         // piece_fits should now return false → game over
-        let fits = collision::piece_fits(&board, piece.kind, piece.rotation, piece.col, piece.row, None);
+        let fits = collision::piece_fits(
+            &board,
+            piece.kind,
+            piece.rotation,
+            piece.col,
+            piece.row,
+            None,
+        );
         assert!(!fits, "blocked spawn should trigger game over detection");
     }
 
@@ -662,7 +768,11 @@ pub fn check_game_over(
 ) {
     let snapshots = collect_snapshots(players.iter().map(|ap| (ap.player, ap.to_piece_pos())));
     for (player, pos) in snapshots.iter().flatten() {
-        let other = snapshots.iter().flatten().find(|(pid, _)| pid != player).map(|(_, p)| *p);
+        let other = snapshots
+            .iter()
+            .flatten()
+            .find(|(pid, _)| pid != player)
+            .map(|(_, p)| *p);
         if !piece_fits(&board, pos.kind, pos.rotation, pos.col, pos.row, other) {
             ev_gameover.write(GameOverEvent);
             next_state.set(GameState::GameOver);

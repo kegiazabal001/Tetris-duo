@@ -50,7 +50,11 @@ pub struct ModeTimerText;
 pub struct LinesRemainingText;
 
 pub fn setup_hud(mut commands: Commands, mode: Res<SelectedMode>, font: Res<GameFont>) {
-    let f = |size: f32| TextFont { font: font.0.clone(), font_size: size, ..default() };
+    let f = |size: f32| TextFont {
+        font: font.0.clone(),
+        font_size: size,
+        ..default()
+    };
     commands
         .spawn((
             HudRoot,
@@ -123,7 +127,7 @@ pub fn despawn_hud(mut commands: Commands, query: Query<Entity, With<HudRoot>>) 
     }
 }
 
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn update_hud(
     score: Res<ScoreBoard>,
     mode: Res<SelectedMode>,
@@ -248,7 +252,11 @@ pub fn update_hud(
 pub struct MenuRoot;
 
 pub fn setup_menu(mut commands: Commands, font: Res<GameFont>) {
-    let f = |size: f32| TextFont { font: font.0.clone(), font_size: size, ..default() };
+    let f = |size: f32| TextFont {
+        font: font.0.clone(),
+        font_size: size,
+        ..default()
+    };
     commands
         .spawn((
             MenuRoot,
@@ -332,14 +340,18 @@ pub struct ModeSelectRoot;
 pub struct StartLevelText;
 
 pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>, font: Res<GameFont>) {
-    let f = |size: f32| TextFont { font: font.0.clone(), font_size: size, ..default() };
+    let f = |size: f32| TextFont {
+        font: font.0.clone(),
+        font_size: size,
+        ..default()
+    };
     let endless_best = format!("Best: {} pts", fmt_score(config.high_scores.endless));
     let sprint_best = match config.high_scores.sprint_best {
         Some(secs) => format!("Best: {}", fmt_time_sprint(secs)),
         None => "Best: --".to_string(),
     };
-    let ultra_best  = format!("Best: {} pts", fmt_score(config.high_scores.ultra_best));
-    let chaos_best  = format!("Best: {} pts", fmt_score(config.high_scores.chaos_best));
+    let ultra_best = format!("Best: {} pts", fmt_score(config.high_scores.ultra_best));
+    let chaos_best = format!("Best: {} pts", fmt_score(config.high_scores.chaos_best));
 
     commands
         .spawn((
@@ -356,11 +368,7 @@ pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>, font: R
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.88)),
         ))
         .with_children(|parent| {
-            parent.spawn((
-                Text::new("SELECT MODE"),
-                TextColor(Color::WHITE),
-                f(40.0),
-            ));
+            parent.spawn((Text::new("SELECT MODE"), TextColor(Color::WHITE), f(40.0)));
 
             // Endless
             parent.spawn((
@@ -370,7 +378,10 @@ pub fn setup_mode_select(mut commands: Commands, config: Res<AppConfig>, font: R
             ));
             // Sprint
             parent.spawn((
-                Text::new(format!("2  SPRINT  ({} lines)  -  {sprint_best}", SPRINT_GOAL)),
+                Text::new(format!(
+                    "2  SPRINT  ({} lines)  -  {sprint_best}",
+                    SPRINT_GOAL
+                )),
                 TextColor(Color::srgb(0.4, 1.0, 0.6)),
                 f(24.0),
             ));
@@ -414,9 +425,19 @@ pub fn mode_select_level_input(
     mut text_q: Query<&mut Text, With<StartLevelText>>,
 ) {
     let changed = if keyboard.just_pressed(KeyCode::ArrowLeft) {
-        if config.start_level > 1 { config.start_level -= 1; true } else { false }
+        if config.start_level > 1 {
+            config.start_level -= 1;
+            true
+        } else {
+            false
+        }
     } else if keyboard.just_pressed(KeyCode::ArrowRight) {
-        if config.start_level < 15 { config.start_level += 1; true } else { false }
+        if config.start_level < 15 {
+            config.start_level += 1;
+            true
+        } else {
+            false
+        }
     } else {
         false
     };
@@ -464,7 +485,11 @@ pub fn mode_select_input(
 pub struct PauseRoot;
 
 pub fn setup_pause(mut commands: Commands, font: Res<GameFont>) {
-    let f = |size: f32| TextFont { font: font.0.clone(), font_size: size, ..default() };
+    let f = |size: f32| TextFont {
+        font: font.0.clone(),
+        font_size: size,
+        ..default()
+    };
     commands
         .spawn((
             PauseRoot,
@@ -529,11 +554,9 @@ pub fn pause_input(
             _ => {}
         }
     }
-    if keyboard.just_pressed(KeyCode::KeyQ) {
-        if *state.get() == GameState::Paused {
-            quit_to_menu.write(QuitToMenu);
-            next_state.set(GameState::Menu);
-        }
+    if keyboard.just_pressed(KeyCode::KeyQ) && *state.get() == GameState::Paused {
+        quit_to_menu.write(QuitToMenu);
+        next_state.set(GameState::Menu);
     }
 }
 
@@ -560,21 +583,34 @@ pub fn setup_game_over(
 
     let best_line = match *mode {
         SelectedMode::Endless => {
-            format!("Best: {} pts", fmt_score(config.high_scores.endless.max(score.score)))
+            format!(
+                "Best: {} pts",
+                fmt_score(config.high_scores.endless.max(score.score))
+            )
         }
         SelectedMode::Sprint => match config.high_scores.sprint_best {
             Some(secs) => format!("Best: {}", fmt_time_sprint(secs)),
             None => "Best: --".to_string(),
         },
         SelectedMode::Ultra => {
-            format!("Best: {} pts", fmt_score(config.high_scores.ultra_best.max(score.score)))
+            format!(
+                "Best: {} pts",
+                fmt_score(config.high_scores.ultra_best.max(score.score))
+            )
         }
         SelectedMode::Chaos => {
-            format!("Best: {} pts", fmt_score(config.high_scores.chaos_best.max(score.score)))
+            format!(
+                "Best: {} pts",
+                fmt_score(config.high_scores.chaos_best.max(score.score))
+            )
         }
     };
 
-    let f = |size: f32| TextFont { font: font.0.clone(), font_size: size, ..default() };
+    let f = |size: f32| TextFont {
+        font: font.0.clone(),
+        font_size: size,
+        ..default()
+    };
     commands
         .spawn((
             GameOverRoot,
@@ -590,13 +626,13 @@ pub fn setup_game_over(
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.85)),
         ))
         .with_children(|parent| {
+            parent.spawn((Text::new(title), TextColor(title_color), f(48.0)));
             parent.spawn((
-                Text::new(title),
-                TextColor(title_color),
-                f(48.0),
-            ));
-            parent.spawn((
-                Text::new(format!("Score: {}  |  Level: {}", fmt_score(score.score), score.level)),
+                Text::new(format!(
+                    "Score: {}  |  Level: {}",
+                    fmt_score(score.score),
+                    score.level
+                )),
                 TextColor(Color::WHITE),
                 f(28.0),
             ));
@@ -655,7 +691,11 @@ pub fn setup_sprint_complete(
         (format!("Mejor: {best_str}"), Color::srgb(0.5, 0.5, 0.5))
     };
 
-    let f = |size: f32| TextFont { font: font.0.clone(), font_size: size, ..default() };
+    let f = |size: f32| TextFont {
+        font: font.0.clone(),
+        font_size: size,
+        ..default()
+    };
     commands
         .spawn((
             SprintCompleteRoot,
@@ -681,11 +721,7 @@ pub fn setup_sprint_complete(
                 TextColor(Color::WHITE),
                 f(32.0),
             ));
-            parent.spawn((
-                Text::new(record_text),
-                TextColor(record_color),
-                f(24.0),
-            ));
+            parent.spawn((Text::new(record_text), TextColor(record_color), f(24.0)));
             parent.spawn((
                 Text::new("Press SPACE to return to mode select"),
                 TextColor(Color::srgb(0.7, 0.7, 0.7)),
@@ -744,11 +780,11 @@ pub fn fmt_time_sprint(secs: f32) -> String {
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 
-use bevy::audio::Volume;
 use crate::config::keycode_to_str;
 use crate::input::PieceAction;
 use crate::player::PlayerId;
 use crate::state::RebindTarget;
+use bevy::audio::Volume;
 
 #[derive(Component)]
 pub struct SettingsRoot;
@@ -772,20 +808,25 @@ pub struct BindingLabel {
 pub struct VolumeBar;
 
 const ACTIONS: [(PieceAction, &str); 7] = [
-    (PieceAction::MoveLeft,   "Move Left"),
-    (PieceAction::MoveRight,  "Move Right"),
-    (PieceAction::SoftDrop,   "Soft Drop"),
-    (PieceAction::HardDrop,   "Hard Drop"),
-    (PieceAction::RotateCW,   "Rotate CW"),
-    (PieceAction::RotateCCW,  "Rotate CCW"),
-    (PieceAction::Hold,       "Hold"),
+    (PieceAction::MoveLeft, "Move Left"),
+    (PieceAction::MoveRight, "Move Right"),
+    (PieceAction::SoftDrop, "Soft Drop"),
+    (PieceAction::HardDrop, "Hard Drop"),
+    (PieceAction::RotateCW, "Rotate CW"),
+    (PieceAction::RotateCCW, "Rotate CCW"),
+    (PieceAction::Hold, "Hold"),
 ];
 
 fn volume_bar_str(volume: f32) -> String {
     let filled = (volume * 10.0).round() as usize;
     let empty = 10usize.saturating_sub(filled);
     let pct = (volume * 100.0).round() as u32;
-    format!("Volume: {}{}  {}%", "#".repeat(filled), "-".repeat(empty), pct)
+    format!(
+        "Volume: {}{}  {}%",
+        "#".repeat(filled),
+        "-".repeat(empty),
+        pct
+    )
 }
 
 fn binding_str(config: &AppConfig, player: PlayerId, action: PieceAction) -> String {
@@ -794,19 +835,23 @@ fn binding_str(config: &AppConfig, player: PlayerId, action: PieceAction) -> Str
         PlayerId::P2 => &config.p2,
     };
     let key = match action {
-        PieceAction::MoveLeft  => &b.move_left,
+        PieceAction::MoveLeft => &b.move_left,
         PieceAction::MoveRight => &b.move_right,
-        PieceAction::SoftDrop  => &b.soft_drop,
-        PieceAction::HardDrop  => &b.hard_drop,
-        PieceAction::RotateCW  => &b.rotate_cw,
+        PieceAction::SoftDrop => &b.soft_drop,
+        PieceAction::HardDrop => &b.hard_drop,
+        PieceAction::RotateCW => &b.rotate_cw,
         PieceAction::RotateCCW => &b.rotate_ccw,
-        PieceAction::Hold      => &b.hold,
+        PieceAction::Hold => &b.hold,
     };
     format!("[{key}]")
 }
 
 pub fn setup_settings(mut commands: Commands, config: Res<AppConfig>, font: Res<GameFont>) {
-    let f = |size: f32| TextFont { font: font.0.clone(), font_size: size, ..default() };
+    let f = |size: f32| TextFont {
+        font: font.0.clone(),
+        font_size: size,
+        ..default()
+    };
     commands.insert_resource(SettingsCursor::default());
 
     commands
@@ -951,10 +996,11 @@ pub fn update_settings_highlight(
 
     for (label, mut color) in &mut labels {
         let is_selected_row = label.action == action_at_row;
-        let is_selected_col =
-            (cursor.col == 0 && label.player == PlayerId::P1) ||
-            (cursor.col == 1 && label.player == PlayerId::P2);
-        let is_pending = rebind.pending.map_or(false, |(p, a)| p == label.player && a == label.action);
+        let is_selected_col = (cursor.col == 0 && label.player == PlayerId::P1)
+            || (cursor.col == 1 && label.player == PlayerId::P2);
+        let is_pending = rebind
+            .pending
+            .is_some_and(|(p, a)| p == label.player && a == label.action);
 
         *color = if is_pending {
             TextColor(Color::srgb(1.0, 0.5, 0.0))
@@ -966,6 +1012,7 @@ pub fn update_settings_highlight(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn settings_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     cursor: Option<ResMut<SettingsCursor>>,
@@ -980,7 +1027,10 @@ pub fn settings_input(
 
     // If waiting for a key capture
     if let Some((player, action)) = rebind.pending {
-        let captured = keyboard.get_just_pressed().find(|&&kc| kc != KeyCode::Escape).copied();
+        let captured = keyboard
+            .get_just_pressed()
+            .find(|&&kc| kc != KeyCode::Escape)
+            .copied();
         if let Some(kc) = captured {
             // Only accept keys that are in the whitelist so the binding
             // round-trips correctly through the JSON config.
@@ -991,13 +1041,13 @@ pub fn settings_input(
                         PlayerId::P2 => &mut config.p2,
                     };
                     let field = match action {
-                        PieceAction::MoveLeft  => &mut b.move_left,
+                        PieceAction::MoveLeft => &mut b.move_left,
                         PieceAction::MoveRight => &mut b.move_right,
-                        PieceAction::SoftDrop  => &mut b.soft_drop,
-                        PieceAction::HardDrop  => &mut b.hard_drop,
-                        PieceAction::RotateCW  => &mut b.rotate_cw,
+                        PieceAction::SoftDrop => &mut b.soft_drop,
+                        PieceAction::HardDrop => &mut b.hard_drop,
+                        PieceAction::RotateCW => &mut b.rotate_cw,
                         PieceAction::RotateCCW => &mut b.rotate_ccw,
-                        PieceAction::Hold      => &mut b.hold,
+                        PieceAction::Hold => &mut b.hold,
                     };
                     *field = key_str.to_string();
                 }
@@ -1058,7 +1108,11 @@ pub fn settings_input(
 
         // Enter: start capture
         if keyboard.just_pressed(KeyCode::Enter) {
-            let player = if cursor.col == 0 { PlayerId::P1 } else { PlayerId::P2 };
+            let player = if cursor.col == 0 {
+                PlayerId::P1
+            } else {
+                PlayerId::P2
+            };
             let action = ACTIONS[cursor.row].0;
             rebind.pending = Some((player, action));
         }
@@ -1102,11 +1156,19 @@ pub struct MuteIcon;
 
 /// Spawned once at Startup. Never despawned — persists across all game states.
 pub fn setup_mute_icon(mut commands: Commands, font: Res<GameFont>, config: Res<AppConfig>) {
-    let visible = if config.volume == 0.0 { Visibility::Visible } else { Visibility::Hidden };
+    let visible = if config.volume == 0.0 {
+        Visibility::Visible
+    } else {
+        Visibility::Hidden
+    };
     commands.spawn((
         MuteIcon,
         Text::new("[MUTE]"),
-        TextFont { font: font.0.clone(), font_size: 18.0, ..default() },
+        TextFont {
+            font: font.0.clone(),
+            font_size: 18.0,
+            ..default()
+        },
         TextColor(Color::srgba(1.0, 0.3, 0.3, 0.9)),
         Node {
             position_type: PositionType::Absolute,
@@ -1120,13 +1182,16 @@ pub fn setup_mute_icon(mut commands: Commands, font: Res<GameFont>, config: Res<
 }
 
 /// Keeps the mute icon in sync with AppConfig every frame.
-pub fn sync_mute_icon(
-    config: Res<AppConfig>,
-    mut icon: Query<&mut Visibility, With<MuteIcon>>,
-) {
+pub fn sync_mute_icon(config: Res<AppConfig>, mut icon: Query<&mut Visibility, With<MuteIcon>>) {
     if !config.is_changed() {
         return;
     }
-    let Ok(mut vis) = icon.single_mut() else { return };
-    *vis = if config.volume == 0.0 { Visibility::Visible } else { Visibility::Hidden };
+    let Ok(mut vis) = icon.single_mut() else {
+        return;
+    };
+    *vis = if config.volume == 0.0 {
+        Visibility::Visible
+    } else {
+        Visibility::Hidden
+    };
 }

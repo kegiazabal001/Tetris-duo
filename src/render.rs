@@ -1,14 +1,14 @@
 use bevy::prelude::*;
 
 use crate::board::{Board, PieceColor, COLS, VISIBLE_ROWS};
-use crate::ui::GameFont;
-use crate::collision::{self, piece_fits};
-use crate::piece::{self, Rotation, TetrominoKind};
-use crate::piece::TSpinType;
 use crate::collision::PiecePos;
+use crate::collision::{self, piece_fits};
+use crate::piece::TSpinType;
+use crate::piece::{self, Rotation, TetrominoKind};
 use crate::player::{ActivePiece, LinesCleared, PieceBag, PieceLocked, PlayerId};
 use crate::scoring::{LevelUpEvent, ScoreBoard};
 use crate::state::ChaosState;
+use crate::ui::GameFont;
 
 pub use crate::constants::CELL_SIZE;
 pub const BOARD_OFFSET_X: f32 = -(COLS as f32 * CELL_SIZE) / 2.0;
@@ -32,28 +32,23 @@ fn to_grayscale(color: Color) -> Color {
     Color::srgba(l, l, l, s.alpha)
 }
 
-
 /// Tetris Guideline vivid colors (P1).
 fn kind_color_vivid(kind: TetrominoKind) -> Color {
     match kind {
-        TetrominoKind::I => Color::srgb(0.0, 0.87, 0.87),  // cyan
-        TetrominoKind::O => Color::srgb(0.93, 0.87, 0.0),  // yellow
-        TetrominoKind::T => Color::srgb(0.60, 0.0, 0.87),  // purple
-        TetrominoKind::S => Color::srgb(0.0, 0.87, 0.0),   // green
-        TetrominoKind::Z => Color::srgb(0.87, 0.0, 0.0),   // red
-        TetrominoKind::J => Color::srgb(0.0, 0.20, 0.87),  // blue
-        TetrominoKind::L => Color::srgb(0.93, 0.60, 0.0),  // orange
+        TetrominoKind::I => Color::srgb(0.0, 0.87, 0.87), // cyan
+        TetrominoKind::O => Color::srgb(0.93, 0.87, 0.0), // yellow
+        TetrominoKind::T => Color::srgb(0.60, 0.0, 0.87), // purple
+        TetrominoKind::S => Color::srgb(0.0, 0.87, 0.0),  // green
+        TetrominoKind::Z => Color::srgb(0.87, 0.0, 0.0),  // red
+        TetrominoKind::J => Color::srgb(0.0, 0.20, 0.87), // blue
+        TetrominoKind::L => Color::srgb(0.93, 0.60, 0.0), // orange
     }
 }
 
 /// Pastel versions of the Guideline colors (P2): lerp each vivid color 40% toward white.
 fn kind_color_pastel(kind: TetrominoKind) -> Color {
     let v = kind_color_vivid(kind).to_srgba();
-    Color::srgb(
-        v.red * 0.6 + 0.4,
-        v.green * 0.6 + 0.4,
-        v.blue * 0.6 + 0.4,
-    )
+    Color::srgb(v.red * 0.6 + 0.4, v.green * 0.6 + 0.4, v.blue * 0.6 + 0.4)
 }
 
 fn color_for(pc: PieceColor) -> Color {
@@ -65,10 +60,14 @@ fn color_for(pc: PieceColor) -> Color {
 }
 
 /// Quartz white for anchor pieces — neutral and distinctive during normal play.
-fn anchor_color() -> Color { Color::srgb(0.92, 0.90, 0.88) }
+fn anchor_color() -> Color {
+    Color::srgb(0.92, 0.90, 0.88)
+}
 
 /// Bright gold in B&W blackout — saturated yellow pops against the grayscale board.
-fn anchor_color_bw() -> Color { Color::srgb(1.0, 0.82, 0.05) }
+fn anchor_color_bw() -> Color {
+    Color::srgb(1.0, 0.82, 0.05)
+}
 
 fn active_color(player: PlayerId, kind: TetrominoKind) -> Color {
     match player {
@@ -144,8 +143,8 @@ pub struct GhostBlockSprite {
 #[derive(Component)]
 pub struct NextPieceBlock {
     pub player: PlayerId,
-    pub slot: usize,   // 0 = siguiente, 1 = +1, 2 = +2
-    pub index: usize,  // 0..4 (bloque dentro de la pieza)
+    pub slot: usize,  // 0 = siguiente, 1 = +1, 2 = +2
+    pub index: usize, // 0..4 (bloque dentro de la pieza)
 }
 
 #[derive(Component)]
@@ -168,7 +167,11 @@ fn cell_pos(col: usize, row: usize, flip: bool) -> Vec3 {
 /// Centering offset so each piece looks centered in its 4×4 preview box.
 fn preview_center_offset(kind: TetrominoKind) -> (f32, f32) {
     let cells = piece::cells(kind, Rotation::R0);
-    debug_assert_eq!(cells.len(), 4, "preview_center_offset: pieza no tiene 4 células");
+    debug_assert_eq!(
+        cells.len(),
+        4,
+        "preview_center_offset: pieza no tiene 4 células"
+    );
     let n = cells.len() as f32;
     let cx: f32 = cells.iter().map(|(x, _)| *x as f32).sum::<f32>() / n;
     let cy: f32 = cells.iter().map(|(_, y)| *y as f32).sum::<f32>() / n;
@@ -292,7 +295,11 @@ pub fn setup_board_visuals(mut commands: Commands) {
                         ..default()
                     },
                     Transform::from_translation(Vec3::new(0.0, -1000.0, 3.0)),
-                    NextPieceBlock { player, slot, index },
+                    NextPieceBlock {
+                        player,
+                        slot,
+                        index,
+                    },
                 ));
             }
         }
@@ -310,6 +317,7 @@ pub fn setup_board_visuals(mut commands: Commands) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn despawn_board_visuals(
     mut commands: Commands,
     q1: Query<Entity, With<BoardCellSprite>>,
@@ -320,7 +328,8 @@ pub fn despawn_board_visuals(
     q6: Query<Entity, With<HoldPieceBlock>>,
     q7: Query<Entity, With<PopupText>>,
 ) {
-    for e in q1.iter()
+    for e in q1
+        .iter()
         .chain(q2.iter())
         .chain(q3.iter())
         .chain(q4.iter())
@@ -344,8 +353,10 @@ pub fn sync_board_cells(
     mut query: Query<(&BoardCellSprite, &mut Transform, &mut Sprite)>,
 ) {
     use crate::state::FlipPhase;
-    let bw = chaos.as_ref().map_or(false, |c| c.swap_active);
-    let flip_active = chaos.as_ref().map_or(false, |c| !matches!(c.flip_phase, FlipPhase::Inactive));
+    let bw = chaos.as_ref().is_some_and(|c| c.swap_active);
+    let flip_active = chaos
+        .as_ref()
+        .is_some_and(|c| !matches!(c.flip_phase, FlipPhase::Inactive));
     // Fade from white to transparent during the flip flash.
     let flip_t = (flip_flash.timer / FLIP_FLASH_DURATION).clamp(0.0, 1.0);
     let flash_t = if flash.timer > 0.0 {
@@ -378,16 +389,22 @@ pub fn sync_board_cells(
                     anchor_color_bw()
                 } else {
                     let c = color_for(pc);
-                    if bw { to_grayscale(c) } else { c }
+                    if bw {
+                        to_grayscale(c)
+                    } else {
+                        c
+                    }
                 }
             }
-            None => if bw {
-                Color::srgb(0.05, 0.05, 0.05)
-            } else if flip_active {
-                Color::srgb(0.08, 0.08, 0.18) // blue-purple tint during FLIP
-            } else {
-                Color::srgb(0.12, 0.12, 0.15)
-            },
+            None => {
+                if bw {
+                    Color::srgb(0.05, 0.05, 0.05)
+                } else if flip_active {
+                    Color::srgb(0.08, 0.08, 0.18) // blue-purple tint during FLIP
+                } else {
+                    Color::srgb(0.12, 0.12, 0.15)
+                }
+            }
         };
         let after_line_flash = if pulse > 0.0 && flash.pending_rows.contains(&cell.row) {
             let srgba = base.to_srgba();
@@ -461,8 +478,10 @@ pub fn sync_active_pieces(
     mut blocks: Query<(&ActiveBlockSprite, &mut Transform, &mut Sprite)>,
 ) {
     use crate::state::FlipPhase;
-    let bw = chaos.as_ref().map_or(false, |c| c.swap_active);
-    let flip = chaos.as_ref().map_or(false, |c| !matches!(c.flip_phase, FlipPhase::Inactive));
+    let bw = chaos.as_ref().is_some_and(|c| c.swap_active);
+    let flip = chaos
+        .as_ref()
+        .is_some_and(|c| !matches!(c.flip_phase, FlipPhase::Inactive));
     for (block, mut tf, mut sprite) in &mut blocks {
         let Some(piece) = players.iter().find(|p| p.player == block.player) else {
             tf.translation.y = -1000.0;
@@ -474,10 +493,18 @@ pub fn sync_active_pieces(
             tf.translation = cell_pos(cx as usize, cy as usize, flip);
             tf.translation.z = 2.0;
             let c = if piece.is_anchor {
-                if bw { anchor_color_bw() } else { anchor_color() }
+                if bw {
+                    anchor_color_bw()
+                } else {
+                    anchor_color()
+                }
             } else {
                 let c = active_color(piece.player, piece.kind);
-                if bw { to_grayscale(c) } else { c }
+                if bw {
+                    to_grayscale(c)
+                } else {
+                    c
+                }
             };
             sprite.color = c;
         } else {
@@ -494,8 +521,10 @@ pub fn sync_ghost_pieces(
     mut ghosts: Query<(&GhostBlockSprite, &mut Transform, &mut Sprite)>,
 ) {
     use crate::state::FlipPhase;
-    let bw = chaos.as_ref().map_or(false, |c| c.swap_active);
-    let flip = chaos.as_ref().map_or(false, |c| !matches!(c.flip_phase, FlipPhase::Inactive));
+    let bw = chaos.as_ref().is_some_and(|c| c.swap_active);
+    let flip = chaos
+        .as_ref()
+        .is_some_and(|c| !matches!(c.flip_phase, FlipPhase::Inactive));
     // Collect minimal snapshots — no heap allocation, no full ActivePiece clone.
     let snapshots: [Option<(PlayerId, PiecePos)>; 2] = {
         let mut it = players.iter();
@@ -506,11 +535,19 @@ pub fn sync_ghost_pieces(
     };
 
     for (ghost, mut tf, mut sprite) in &mut ghosts {
-        let Some((player, pos)) = snapshots.iter().flatten().find(|(pid, _)| *pid == ghost.player) else {
+        let Some((player, pos)) = snapshots
+            .iter()
+            .flatten()
+            .find(|(pid, _)| *pid == ghost.player)
+        else {
             tf.translation.y = -1000.0;
             continue;
         };
-        let other = snapshots.iter().flatten().find(|(pid, _)| *pid != ghost.player).map(|(_, p)| *p);
+        let other = snapshots
+            .iter()
+            .flatten()
+            .find(|(pid, _)| *pid != ghost.player)
+            .map(|(_, p)| *p);
 
         let mut ghost_row = pos.row;
         loop {
@@ -526,7 +563,10 @@ pub fn sync_ghost_pieces(
         if cy < VISIBLE_ROWS as i32 && cy >= 0 && cx >= 0 && cx < COLS as i32 {
             tf.translation = cell_pos(cx as usize, cy as usize, flip);
             tf.translation.z = 1.0;
-            let is_anchor = players.iter().find(|p| p.player == *player).map_or(false, |p| p.is_anchor);
+            let is_anchor = players
+                .iter()
+                .find(|p| p.player == *player)
+                .is_some_and(|p| p.is_anchor);
             let c = if is_anchor {
                 if bw {
                     let a = anchor_color_bw().to_srgba();
@@ -537,7 +577,11 @@ pub fn sync_ghost_pieces(
                 }
             } else {
                 let c = ghost_color(*player, pos.kind);
-                if bw { to_grayscale(c) } else { c }
+                if bw {
+                    to_grayscale(c)
+                } else {
+                    c
+                }
             };
             sprite.color = c;
         } else {
@@ -550,18 +594,16 @@ pub fn sync_ghost_pieces(
 pub fn sync_preview_pieces(
     players: Query<(&ActivePiece, &PieceBag)>,
     chaos: Option<Res<ChaosState>>,
-    mut next_blocks: Query<
-        (&NextPieceBlock, &mut Transform, &mut Sprite),
-        Without<HoldPieceBlock>,
-    >,
-    mut hold_blocks: Query<
-        (&HoldPieceBlock, &mut Transform, &mut Sprite),
-        Without<NextPieceBlock>,
-    >,
+    mut next_blocks: Query<(&NextPieceBlock, &mut Transform, &mut Sprite), Without<HoldPieceBlock>>,
+    mut hold_blocks: Query<(&HoldPieceBlock, &mut Transform, &mut Sprite), Without<NextPieceBlock>>,
 ) {
-    let bw = chaos.as_ref().map_or(false, |c| c.swap_active);
+    let bw = chaos.as_ref().is_some_and(|c| c.swap_active);
     for (block, mut tf, mut sprite) in &mut next_blocks {
-        let panel_x = if block.player == PlayerId::P1 { P1_PANEL_X } else { P2_PANEL_X };
+        let panel_x = if block.player == PlayerId::P1 {
+            P1_PANEL_X
+        } else {
+            P2_PANEL_X
+        };
         let Some((piece, bag)) = players.iter().find(|(p, _)| p.player == block.player) else {
             tf.translation.y = -1000.0;
             continue;
@@ -580,7 +622,11 @@ pub fn sync_preview_pieces(
     }
 
     for (block, mut tf, mut sprite) in &mut hold_blocks {
-        let panel_x = if block.player == PlayerId::P1 { P1_PANEL_X } else { P2_PANEL_X };
+        let panel_x = if block.player == PlayerId::P1 {
+            P1_PANEL_X
+        } else {
+            P2_PANEL_X
+        };
         let Some((piece, _)) = players.iter().find(|(p, _)| p.player == block.player) else {
             tf.translation.y = -1000.0;
             continue;
@@ -608,10 +654,7 @@ pub fn sync_preview_pieces(
 }
 
 /// Populate PieceLockFlash when a piece locks.
-pub fn on_piece_locked(
-    mut ev: EventReader<PieceLocked>,
-    mut lock_flash: ResMut<PieceLockFlash>,
-) {
+pub fn on_piece_locked(mut ev: EventReader<PieceLocked>, mut lock_flash: ResMut<PieceLockFlash>) {
     for event in ev.read() {
         lock_flash.timer = LOCK_FLASH_DURATION;
         lock_flash.cells = event
@@ -645,10 +688,17 @@ pub fn tick_flip_flash(time: Res<Time>, mut flip_flash: ResMut<FlipFlash>) {
 fn spawn_popup(commands: &mut Commands, font: &GameFont, text: &str, pos: Vec3, lifetime: f32) {
     commands.spawn((
         Text2d::new(text.to_string()),
-        TextFont { font: font.0.clone(), font_size: 28.0, ..default() },
+        TextFont {
+            font: font.0.clone(),
+            font_size: 28.0,
+            ..default()
+        },
         TextColor(Color::WHITE),
         Transform::from_translation(pos),
-        PopupText { lifetime, total: lifetime },
+        PopupText {
+            lifetime,
+            total: lifetime,
+        },
     ));
 }
 
@@ -669,8 +719,8 @@ pub fn spawn_popups(
         };
         let label = match (event.count, event.t_spin) {
             (4, TSpinType::None) => Some("TETRIS!"),
-            (_, TSpinType::Full)  => Some("T-SPIN!"),
-            (_, TSpinType::Mini)  => Some("T-SPIN MINI"),
+            (_, TSpinType::Full) => Some("T-SPIN!"),
+            (_, TSpinType::Mini) => Some("T-SPIN MINI"),
             (3, _) => Some("TRIPLE"),
             (2, _) => Some("DOUBLE"),
             _ => None,
@@ -680,7 +730,13 @@ pub fn spawn_popups(
         }
         if score.combo > 0 {
             let combo_text = format!("COMBO x{}", score.combo);
-            spawn_popup(&mut commands, &font, &combo_text, Vec3::new(x, 10.0, 10.0), 1.5);
+            spawn_popup(
+                &mut commands,
+                &font,
+                &combo_text,
+                Vec3::new(x, 10.0, 10.0),
+                1.5,
+            );
         }
     }
 }
@@ -717,4 +773,3 @@ pub fn tick_popups(
         color.0 = Color::srgba(1.0, 1.0, 1.0, alpha);
     }
 }
-

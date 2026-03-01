@@ -30,7 +30,7 @@ pub enum SelectedMode {
 }
 
 pub const CHAOS_PIECE_THRESHOLD: u32 = 10;
-pub const CHAOS_SWAP_PIECES: u32     = 3;
+pub const CHAOS_SWAP_PIECES: u32 = 3;
 
 /// All possible chaos events. To add a new one: add a variant here,
 /// new fields in ChaosState, and a new match arm in trigger/tick logic.
@@ -59,7 +59,7 @@ pub struct ChaosState {
     // SwapBlackout fields
     pub swap_p1_remaining: u32,
     pub swap_p2_remaining: u32,
-    pub swap_active:       bool,
+    pub swap_active: bool,
     // FLIP fields
     pub flip_phase: FlipPhase,
     /// Countdown during Active phase.
@@ -84,14 +84,14 @@ impl ChaosState {
     /// Trigger the next random chaos event.
     pub fn trigger_next_event(&mut self) {
         if rand::random::<bool>() {
-            self.active_event      = Some(ChaosEvent::SwapBlackout);
+            self.active_event = Some(ChaosEvent::SwapBlackout);
             self.swap_p1_remaining = CHAOS_SWAP_PIECES;
             self.swap_p2_remaining = CHAOS_SWAP_PIECES;
-            self.swap_active       = true;
+            self.swap_active = true;
         } else {
             self.active_event = Some(ChaosEvent::Flip);
-            self.flip_phase   = FlipPhase::Active;
-            self.flip_timer   = crate::constants::FLIP_DURATION;
+            self.flip_phase = FlipPhase::Active;
+            self.flip_timer = crate::constants::FLIP_DURATION;
         }
     }
 }

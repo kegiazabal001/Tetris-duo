@@ -2,9 +2,11 @@ use bevy::prelude::*;
 
 use crate::config::AppConfig;
 use crate::player::{PieceLocked, PlayerId};
-use crate::scoring::ScoreBoard;
-use crate::state::{ChaosEvent, ChaosState, FlipPhase, GameState, SelectedMode, CHAOS_PIECE_THRESHOLD};
 use crate::render::FlipFlash;
+use crate::scoring::ScoreBoard;
+use crate::state::{
+    ChaosEvent, ChaosState, FlipPhase, GameState, SelectedMode, CHAOS_PIECE_THRESHOLD,
+};
 
 pub use crate::constants::{FLIP_DURATION, SPRINT_GOAL, ULTRA_DURATION};
 
@@ -63,37 +65,46 @@ pub fn reset_chaos_state(mut cs: ResMut<ChaosState>) {
 }
 
 /// Resolves chaos event completion: swap ends when both players have placed all swapped pieces.
-pub fn tick_chaos(
-    mode: Res<SelectedMode>,
-    mut cs: ResMut<ChaosState>,
-) {
-    if *mode != SelectedMode::Chaos { return; }
-    if cs.active_event.is_none() { return; }
+pub fn tick_chaos(mode: Res<SelectedMode>, mut cs: ResMut<ChaosState>) {
+    if *mode != SelectedMode::Chaos {
+        return;
+    }
+    if cs.active_event.is_none() {
+        return;
+    }
 
     if cs.swap_active && cs.swap_p1_remaining == 0 && cs.swap_p2_remaining == 0 {
-        cs.swap_active             = false;
-        cs.active_event            = None;
+        cs.swap_active = false;
+        cs.active_event = None;
         cs.pieces_since_last_event = 0;
     }
 }
 
 /// Reacts to piece-lock events to drive the chaos event counter and swap tracking.
 pub fn on_piece_locked_chaos(
-    mode:     Res<SelectedMode>,
-    mut cs:   ResMut<ChaosState>,
-    mut ev:   EventReader<PieceLocked>,
+    mode: Res<SelectedMode>,
+    mut cs: ResMut<ChaosState>,
+    mut ev: EventReader<PieceLocked>,
     mut flash: ResMut<FlipFlash>,
 ) {
-    if *mode != SelectedMode::Chaos { return; }
+    if *mode != SelectedMode::Chaos {
+        return;
+    }
 
     for event in ev.read() {
         match cs.active_event {
-            Some(ChaosEvent::SwapBlackout) => {
-                match event.player {
-                    PlayerId::P1 => { if cs.swap_p1_remaining > 0 { cs.swap_p1_remaining -= 1; } }
-                    PlayerId::P2 => { if cs.swap_p2_remaining > 0 { cs.swap_p2_remaining -= 1; } }
+            Some(ChaosEvent::SwapBlackout) => match event.player {
+                PlayerId::P1 => {
+                    if cs.swap_p1_remaining > 0 {
+                        cs.swap_p1_remaining -= 1;
+                    }
                 }
-            }
+                PlayerId::P2 => {
+                    if cs.swap_p2_remaining > 0 {
+                        cs.swap_p2_remaining -= 1;
+                    }
+                }
+            },
             Some(ChaosEvent::Flip) => {
                 // Nothing to track during FLIP — the timer handles the transition.
             }
@@ -112,14 +123,18 @@ pub fn on_piece_locked_chaos(
 
 /// Drives the FLIP! event timer every frame. When the timer expires, restores normal view.
 pub fn tick_flip_migration(
-    mode:       Res<SelectedMode>,
-    time:       Res<Time>,
-    mut cs:     ResMut<ChaosState>,
-    mut score:  ResMut<ScoreBoard>,
-    mut flash:  ResMut<FlipFlash>,
+    mode: Res<SelectedMode>,
+    time: Res<Time>,
+    mut cs: ResMut<ChaosState>,
+    mut score: ResMut<ScoreBoard>,
+    mut flash: ResMut<FlipFlash>,
 ) {
-    if *mode != SelectedMode::Chaos { return; }
-    if cs.flip_phase != FlipPhase::Active { return; }
+    if *mode != SelectedMode::Chaos {
+        return;
+    }
+    if cs.flip_phase != FlipPhase::Active {
+        return;
+    }
 
     cs.flip_timer -= time.delta_secs();
     if cs.flip_timer <= 0.0 {
@@ -133,11 +148,13 @@ pub fn tick_flip_migration(
 
 /// Saves Chaos best score when GameOver is entered in Chaos mode.
 pub fn save_chaos_score(
-    mode:       Res<SelectedMode>,
-    score:      Res<ScoreBoard>,
+    mode: Res<SelectedMode>,
+    score: Res<ScoreBoard>,
     mut config: ResMut<AppConfig>,
 ) {
-    if *mode != SelectedMode::Chaos { return; }
+    if *mode != SelectedMode::Chaos {
+        return;
+    }
     config.try_update_chaos(score.score);
 }
 

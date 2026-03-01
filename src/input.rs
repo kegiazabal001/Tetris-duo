@@ -28,12 +28,30 @@ pub fn input_map_for(player: PlayerId, config: &AppConfig) -> InputMap<PieceActi
     // str_to_keycode returns None for unrecognised key names; fall back to the
     // action's default binding so the game stays playable.
     let kc = |s: &str, d: &str| str_to_keycode(s).unwrap_or_else(|| str_to_keycode(d).unwrap());
-    map.insert(PieceAction::MoveLeft,  kc(&bindings.move_left,  &defaults.move_left));
-    map.insert(PieceAction::MoveRight, kc(&bindings.move_right, &defaults.move_right));
-    map.insert(PieceAction::SoftDrop,  kc(&bindings.soft_drop,  &defaults.soft_drop));
-    map.insert(PieceAction::HardDrop,  kc(&bindings.hard_drop,  &defaults.hard_drop));
-    map.insert(PieceAction::RotateCW,  kc(&bindings.rotate_cw,  &defaults.rotate_cw));
-    map.insert(PieceAction::RotateCCW, kc(&bindings.rotate_ccw, &defaults.rotate_ccw));
-    map.insert(PieceAction::Hold,      kc(&bindings.hold,        &defaults.hold));
+    map.insert(
+        PieceAction::MoveLeft,
+        kc(&bindings.move_left, &defaults.move_left),
+    );
+    map.insert(
+        PieceAction::MoveRight,
+        kc(&bindings.move_right, &defaults.move_right),
+    );
+    map.insert(
+        PieceAction::SoftDrop,
+        kc(&bindings.soft_drop, &defaults.soft_drop),
+    );
+    map.insert(
+        PieceAction::HardDrop,
+        kc(&bindings.hard_drop, &defaults.hard_drop),
+    );
+    map.insert(
+        PieceAction::RotateCW,
+        kc(&bindings.rotate_cw, &defaults.rotate_cw),
+    );
+    map.insert(
+        PieceAction::RotateCCW,
+        kc(&bindings.rotate_ccw, &defaults.rotate_ccw),
+    );
+    map.insert(PieceAction::Hold, kc(&bindings.hold, &defaults.hold));
     map
 }

@@ -1,6 +1,6 @@
 # Tetris Duo
 
-Cooperative 2-player Tetris on a single shared board. Both players work together to clear lines in three game modes.
+Cooperative 2-player Tetris on a single shared board. Both players work together to clear lines in four game modes.
 
 ![Rust](https://img.shields.io/badge/Rust-2021-orange?logo=rust)
 ![Bevy](https://img.shields.io/badge/Bevy-0.16-blue)
@@ -8,8 +8,8 @@ Cooperative 2-player Tetris on a single shared board. Both players work together
 
 ## Features
 
-- Shared 18×22 board — no fixed lanes, both pieces interact
-- **Three game modes:** Endless, Sprint (20 lines), Ultra (2 minutes)
+- Shared 18×20 board — no fixed lanes, both pieces interact
+- **Four game modes:** Classic, Sprint (20 lines), Ultra (2 minutes), Chaos (cooperative chaos events every 10 pieces)
 - Full Tetris Guideline scoring: T-Spins, Back-to-Back, combos
 - SRS rotation system with wall kicks
 - 3-piece preview + hold for each player
@@ -17,7 +17,7 @@ Cooperative 2-player Tetris on a single shared board. Both players work together
 - Ghost piece, line clear flash, progressive color effects in Ultra
 - Persistent high scores per mode (`~/.config/tetris-duo/settings.json`)
 - Settings screen with per-player key rebinding
-- 8-bit background music + sound effects
+- 8-bit background music + sound effects, adjustable volume, global mute (M key)
 
 ## Controls
 

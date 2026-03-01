@@ -1,8 +1,8 @@
 pub mod audio;
 pub mod board;
-pub mod constants;
 pub mod collision;
 pub mod config;
+pub mod constants;
 pub mod input;
 pub mod modes;
 pub mod piece;
@@ -55,7 +55,10 @@ impl Plugin for TetrisDuoPlugin {
             .add_systems(Startup, (audio::start_bg_music, ui::setup_mute_icon))
             .add_systems(Update, ui::sync_mute_icon)
             // Menu
-            .add_systems(OnEnter(GameState::Menu), (audio::start_bg_music, ui::setup_menu))
+            .add_systems(
+                OnEnter(GameState::Menu),
+                (audio::start_bg_music, ui::setup_menu),
+            )
             .add_systems(OnExit(GameState::Menu), ui::despawn_menu)
             .add_systems(Update, ui::menu_input.run_if(in_state(GameState::Menu)))
             // ModeSelect
@@ -96,7 +99,8 @@ impl Plugin for TetrisDuoPlugin {
                         render::setup_board_visuals,
                         ui::setup_hud,
                         |mut grace: ResMut<InputGrace>| grace.0 = true,
-                    ).run_if(|r: Res<IsPauseResume>| !r.0),
+                    )
+                        .run_if(|r: Res<IsPauseResume>| !r.0),
                     // When resuming from pause, restart game music (was stopped on pause)
                     audio::start_game_music.run_if(|r: Res<IsPauseResume>| r.0),
                     // Always reset the flag
@@ -105,7 +109,12 @@ impl Plugin for TetrisDuoPlugin {
             )
             .add_systems(
                 OnExit(GameState::Playing),
-                (player::despawn_players, render::despawn_board_visuals, ui::despawn_hud, audio::stop_game_music)
+                (
+                    player::despawn_players,
+                    render::despawn_board_visuals,
+                    ui::despawn_hud,
+                    audio::stop_game_music,
+                )
                     .run_if(|r: Res<IsPauseResume>| !r.0),
             )
             // Playing: game loop
@@ -125,7 +134,8 @@ impl Plugin for TetrisDuoPlugin {
                         render::on_level_up,
                         audio::play_piece_sounds,
                         audio::play_rotate_sound,
-                    ).chain(),
+                    )
+                        .chain(),
                     (
                         audio::play_level_up_sound,
                         audio::play_game_over_sound,
@@ -166,7 +176,14 @@ impl Plugin for TetrisDuoPlugin {
             // Game Over
             .add_systems(
                 OnEnter(GameState::GameOver),
-                (modes::save_ultra_score, modes::save_chaos_score, scoring::save_high_score, ui::setup_game_over, audio::stop_game_music, audio::start_bg_music),
+                (
+                    modes::save_ultra_score,
+                    modes::save_chaos_score,
+                    scoring::save_high_score,
+                    ui::setup_game_over,
+                    audio::stop_game_music,
+                    audio::start_bg_music,
+                ),
             )
             .add_systems(OnExit(GameState::GameOver), ui::despawn_game_over)
             .add_systems(
@@ -174,8 +191,14 @@ impl Plugin for TetrisDuoPlugin {
                 ui::game_over_input.run_if(in_state(GameState::GameOver)),
             )
             // Sprint Complete
-            .add_systems(OnEnter(GameState::SprintComplete), ui::setup_sprint_complete)
-            .add_systems(OnExit(GameState::SprintComplete), ui::despawn_sprint_complete)
+            .add_systems(
+                OnEnter(GameState::SprintComplete),
+                ui::setup_sprint_complete,
+            )
+            .add_systems(
+                OnExit(GameState::SprintComplete),
+                ui::despawn_sprint_complete,
+            )
             .add_systems(
                 Update,
                 ui::sprint_complete_input.run_if(in_state(GameState::SprintComplete)),
@@ -185,6 +208,7 @@ impl Plugin for TetrisDuoPlugin {
 
 /// Cleans up all in-game entities when the player quits to menu from the pause screen.
 /// Runs on `OnExit(Paused)`; does nothing when simply resuming.
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn cleanup_on_quit(
     mut quit: EventReader<QuitToMenu>,
     mut commands: Commands,

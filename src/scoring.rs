@@ -159,7 +159,11 @@ mod tests {
     use crate::player::LinesCleared;
 
     fn cleared(count: u32, t_spin: TSpinType) -> LinesCleared {
-        LinesCleared { player: crate::player::PlayerId::P1, count, t_spin }
+        LinesCleared {
+            player: crate::player::PlayerId::P1,
+            count,
+            t_spin,
+        }
     }
 
     fn score_for(events: &[LinesCleared]) -> u32 {
@@ -189,10 +193,18 @@ mod tests {
                 _ => ev.count * 200,
             };
             let is_hard = ev.count == 4 || matches!(ev.t_spin, TSpinType::Full | TSpinType::Mini);
-            let btb = if is_hard && sb.last_was_hard_clear { 3 } else { 2 };
+            let btb = if is_hard && sb.last_was_hard_clear {
+                3
+            } else {
+                2
+            };
             sb.last_was_hard_clear = is_hard;
             sb.combo += 1;
-            let combo_bonus = if sb.combo > 0 { 50 * sb.combo as u32 * sb.level } else { 0 };
+            let combo_bonus = if sb.combo > 0 {
+                50 * sb.combo as u32 * sb.level
+            } else {
+                0
+            };
             sb.score += base * sb.level * btb / 2 + combo_bonus;
             sb.lines_cleared += ev.count;
             sb.level = ScoreBoard::level_from_lines(sb.lines_cleared);
@@ -269,7 +281,10 @@ mod tests {
         // After a Tetris, T-Spin Full 1 line with BtB = 800 × 1.5 = 1200 > next plain line.
         let s_tspin = score_for(&[cleared(4, TSpinType::None), cleared(1, TSpinType::Full)]);
         let s_normal = score_for(&[cleared(4, TSpinType::None), cleared(1, TSpinType::None)]);
-        assert!(s_tspin > s_normal, "T-Spin Full should score more than single line after Tetris");
+        assert!(
+            s_tspin > s_normal,
+            "T-Spin Full should score more than single line after Tetris"
+        );
     }
 
     #[test]

@@ -5,60 +5,64 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerBindings {
-    pub move_left:  String,
+    pub move_left: String,
     pub move_right: String,
-    pub soft_drop:  String,
-    pub hard_drop:  String,
-    pub rotate_cw:  String,
+    pub soft_drop: String,
+    pub hard_drop: String,
+    pub rotate_cw: String,
     pub rotate_ccw: String,
-    pub hold:       String,
+    pub hold: String,
 }
 
 impl PlayerBindings {
     pub fn p1_defaults() -> Self {
         Self {
-            move_left:  "KeyA".into(),
+            move_left: "KeyA".into(),
             move_right: "KeyD".into(),
-            soft_drop:  "KeyS".into(),
-            hard_drop:  "Space".into(),
-            rotate_cw:  "KeyW".into(),
+            soft_drop: "KeyS".into(),
+            hard_drop: "Space".into(),
+            rotate_cw: "KeyW".into(),
             rotate_ccw: "KeyQ".into(),
-            hold:       "ShiftLeft".into(),
+            hold: "ShiftLeft".into(),
         }
     }
 
     pub fn p2_defaults() -> Self {
         Self {
-            move_left:  "ArrowLeft".into(),
+            move_left: "ArrowLeft".into(),
             move_right: "ArrowRight".into(),
-            soft_drop:  "ArrowDown".into(),
-            hard_drop:  "Enter".into(),
-            rotate_cw:  "ArrowUp".into(),
+            soft_drop: "ArrowDown".into(),
+            hard_drop: "Enter".into(),
+            rotate_cw: "ArrowUp".into(),
             rotate_ccw: "ControlRight".into(),
-            hold:       "ShiftRight".into(),
+            hold: "ShiftRight".into(),
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HighScores {
-    pub endless:     u32,
+    pub endless: u32,
     pub sprint_best: Option<f32>,
-    pub ultra_best:  u32,
+    pub ultra_best: u32,
     #[serde(default)]
-    pub chaos_best:  u32,
+    pub chaos_best: u32,
 }
 
-fn default_volume() -> f32 { 0.6 }
-fn default_start_level() -> u32 { 1 }
+fn default_volume() -> f32 {
+    0.6
+}
+fn default_start_level() -> u32 {
+    1
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Resource)]
 pub struct AppConfig {
-    pub p1:                 PlayerBindings,
-    pub p2:                 PlayerBindings,
-    pub high_scores:        HighScores,
+    pub p1: PlayerBindings,
+    pub p2: PlayerBindings,
+    pub high_scores: HighScores,
     #[serde(default = "default_volume")]
-    pub volume:             f32,
+    pub volume: f32,
     #[serde(default)]
     pub volume_before_mute: Option<f32>,
     #[serde(default = "default_start_level")]
@@ -68,12 +72,12 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            p1:                 PlayerBindings::p1_defaults(),
-            p2:                 PlayerBindings::p2_defaults(),
-            high_scores:        HighScores::default(),
-            volume:             0.6,
+            p1: PlayerBindings::p1_defaults(),
+            p2: PlayerBindings::p2_defaults(),
+            high_scores: HighScores::default(),
+            volume: 0.6,
             volume_before_mute: None,
-            start_level:        1,
+            start_level: 1,
         }
     }
 }
@@ -91,8 +95,7 @@ fn home_config_dir() -> PathBuf {
     // std::env::home_dir is deprecated but still correct on Linux/macOS.
     // It resolves via passwd on Unix rather than trusting $HOME blindly.
     #[allow(deprecated)]
-    let home = std::env::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."));
+    let home = std::env::home_dir().unwrap_or_else(|| PathBuf::from("."));
     home.join(".config").join("tetris-duo")
 }
 
@@ -102,7 +105,9 @@ impl AppConfig {
         if let Ok(contents) = std::fs::read_to_string(&path) {
             match serde_json::from_str(&contents) {
                 Ok(config) => return config,
-                Err(e) => eprintln!("Advertencia: no se pudo leer settings.json ({e}), usando valores por defecto"),
+                Err(e) => eprintln!(
+                    "Advertencia: no se pudo leer settings.json ({e}), usando valores por defecto"
+                ),
             }
         }
         Self::default()
@@ -151,7 +156,11 @@ impl AppConfig {
     /// Compares `elapsed` against the stored sprint best (lower is better);
     /// saves and returns true if it is new.
     pub fn try_update_sprint(&mut self, elapsed: f32) -> bool {
-        if self.high_scores.sprint_best.map_or(true, |best| elapsed < best) {
+        if self
+            .high_scores
+            .sprint_best
+            .is_none_or(|best| elapsed < best)
+        {
             self.high_scores.sprint_best = Some(elapsed);
             self.save();
             true
@@ -162,10 +171,7 @@ impl AppConfig {
 }
 
 /// PreStartup system: loads AppConfig from disk and seeds ScoreBoard's high score.
-pub fn load_config(
-    mut commands: Commands,
-    mut score: ResMut<crate::scoring::ScoreBoard>,
-) {
+pub fn load_config(mut commands: Commands, mut score: ResMut<crate::scoring::ScoreBoard>) {
     let config = AppConfig::load();
     score.high_score = config.high_scores.endless;
     commands.insert_resource(config);
@@ -215,71 +221,71 @@ pub fn str_to_keycode(s: &str) -> Option<KeyCode> {
         "Digit8" => KeyCode::Digit8,
         "Digit9" => KeyCode::Digit9,
         // Arrows
-        "ArrowLeft"  => KeyCode::ArrowLeft,
+        "ArrowLeft" => KeyCode::ArrowLeft,
         "ArrowRight" => KeyCode::ArrowRight,
-        "ArrowUp"    => KeyCode::ArrowUp,
-        "ArrowDown"  => KeyCode::ArrowDown,
+        "ArrowUp" => KeyCode::ArrowUp,
+        "ArrowDown" => KeyCode::ArrowDown,
         // Special keys
-        "Space"        => KeyCode::Space,
-        "Enter"        => KeyCode::Enter,
-        "Escape"       => KeyCode::Escape,
-        "Backspace"    => KeyCode::Backspace,
-        "Tab"          => KeyCode::Tab,
-        "ShiftLeft"    => KeyCode::ShiftLeft,
-        "ShiftRight"   => KeyCode::ShiftRight,
-        "ControlLeft"  => KeyCode::ControlLeft,
+        "Space" => KeyCode::Space,
+        "Enter" => KeyCode::Enter,
+        "Escape" => KeyCode::Escape,
+        "Backspace" => KeyCode::Backspace,
+        "Tab" => KeyCode::Tab,
+        "ShiftLeft" => KeyCode::ShiftLeft,
+        "ShiftRight" => KeyCode::ShiftRight,
+        "ControlLeft" => KeyCode::ControlLeft,
         "ControlRight" => KeyCode::ControlRight,
-        "AltLeft"      => KeyCode::AltLeft,
-        "AltRight"     => KeyCode::AltRight,
+        "AltLeft" => KeyCode::AltLeft,
+        "AltRight" => KeyCode::AltRight,
         // Punctuation
-        "Comma"        => KeyCode::Comma,
-        "Period"       => KeyCode::Period,
-        "Slash"        => KeyCode::Slash,
-        "Backslash"    => KeyCode::Backslash,
-        "Semicolon"    => KeyCode::Semicolon,
-        "Quote"        => KeyCode::Quote,
-        "BracketLeft"  => KeyCode::BracketLeft,
+        "Comma" => KeyCode::Comma,
+        "Period" => KeyCode::Period,
+        "Slash" => KeyCode::Slash,
+        "Backslash" => KeyCode::Backslash,
+        "Semicolon" => KeyCode::Semicolon,
+        "Quote" => KeyCode::Quote,
+        "BracketLeft" => KeyCode::BracketLeft,
         "BracketRight" => KeyCode::BracketRight,
-        "Minus"        => KeyCode::Minus,
-        "Equal"        => KeyCode::Equal,
-        "Backquote"    => KeyCode::Backquote,
+        "Minus" => KeyCode::Minus,
+        "Equal" => KeyCode::Equal,
+        "Backquote" => KeyCode::Backquote,
         // F-keys
-        "F1"  => KeyCode::F1,
-        "F2"  => KeyCode::F2,
-        "F3"  => KeyCode::F3,
-        "F4"  => KeyCode::F4,
-        "F5"  => KeyCode::F5,
-        "F6"  => KeyCode::F6,
-        "F7"  => KeyCode::F7,
-        "F8"  => KeyCode::F8,
-        "F9"  => KeyCode::F9,
+        "F1" => KeyCode::F1,
+        "F2" => KeyCode::F2,
+        "F3" => KeyCode::F3,
+        "F4" => KeyCode::F4,
+        "F5" => KeyCode::F5,
+        "F6" => KeyCode::F6,
+        "F7" => KeyCode::F7,
+        "F8" => KeyCode::F8,
+        "F9" => KeyCode::F9,
         "F10" => KeyCode::F10,
         "F11" => KeyCode::F11,
         "F12" => KeyCode::F12,
         // Numpad
-        "Numpad0"        => KeyCode::Numpad0,
-        "Numpad1"        => KeyCode::Numpad1,
-        "Numpad2"        => KeyCode::Numpad2,
-        "Numpad3"        => KeyCode::Numpad3,
-        "Numpad4"        => KeyCode::Numpad4,
-        "Numpad5"        => KeyCode::Numpad5,
-        "Numpad6"        => KeyCode::Numpad6,
-        "Numpad7"        => KeyCode::Numpad7,
-        "Numpad8"        => KeyCode::Numpad8,
-        "Numpad9"        => KeyCode::Numpad9,
-        "NumpadAdd"      => KeyCode::NumpadAdd,
+        "Numpad0" => KeyCode::Numpad0,
+        "Numpad1" => KeyCode::Numpad1,
+        "Numpad2" => KeyCode::Numpad2,
+        "Numpad3" => KeyCode::Numpad3,
+        "Numpad4" => KeyCode::Numpad4,
+        "Numpad5" => KeyCode::Numpad5,
+        "Numpad6" => KeyCode::Numpad6,
+        "Numpad7" => KeyCode::Numpad7,
+        "Numpad8" => KeyCode::Numpad8,
+        "Numpad9" => KeyCode::Numpad9,
+        "NumpadAdd" => KeyCode::NumpadAdd,
         "NumpadSubtract" => KeyCode::NumpadSubtract,
         "NumpadMultiply" => KeyCode::NumpadMultiply,
-        "NumpadDivide"   => KeyCode::NumpadDivide,
-        "NumpadEnter"    => KeyCode::NumpadEnter,
-        "NumpadDecimal"  => KeyCode::NumpadDecimal,
+        "NumpadDivide" => KeyCode::NumpadDivide,
+        "NumpadEnter" => KeyCode::NumpadEnter,
+        "NumpadDecimal" => KeyCode::NumpadDecimal,
         // Navigation
-        "Home"     => KeyCode::Home,
-        "End"      => KeyCode::End,
-        "PageUp"   => KeyCode::PageUp,
+        "Home" => KeyCode::Home,
+        "End" => KeyCode::End,
+        "PageUp" => KeyCode::PageUp,
         "PageDown" => KeyCode::PageDown,
-        "Insert"   => KeyCode::Insert,
-        "Delete"   => KeyCode::Delete,
+        "Insert" => KeyCode::Insert,
+        "Delete" => KeyCode::Delete,
         _ => return None,
     })
 }

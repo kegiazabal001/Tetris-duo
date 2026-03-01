@@ -62,8 +62,8 @@ impl Rotation {
 /// Returns the 4 cell offsets (col, row) for a given piece and rotation.
 /// Origin is the rotation center; row increases upward in game logic.
 pub fn cells(kind: TetrominoKind, rot: Rotation) -> [(i32, i32); 4] {
-    use TetrominoKind::*;
     use Rotation::*;
+    use TetrominoKind::*;
     match (kind, rot) {
         // I piece
         (I, R0) => [(-1, 0), (0, 0), (1, 0), (2, 0)],

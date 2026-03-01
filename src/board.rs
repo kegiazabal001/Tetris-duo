@@ -187,8 +187,6 @@ impl Board {
             }
         }
     }
-
-
 }
 
 #[cfg(test)]

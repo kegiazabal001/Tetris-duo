@@ -54,7 +54,10 @@ pub fn check_t_spin(board: &Board, col: i32, row: i32, rot: Rotation) -> TSpinTy
         (col - 1, row + 1),
         (col + 1, row + 1),
     ];
-    let occupied = corners.iter().filter(|&&(cx, cy)| !board.is_empty(cx, cy)).count();
+    let occupied = corners
+        .iter()
+        .filter(|&&(cx, cy)| !board.is_empty(cx, cy))
+        .count();
     if occupied < 3 {
         return TSpinType::None;
     }
@@ -65,7 +68,10 @@ pub fn check_t_spin(board: &Board, col: i32, row: i32, rot: Rotation) -> TSpinTy
         Rotation::R2 => [(col - 1, row - 1), (col + 1, row - 1)], // stem down
         Rotation::R3 => [(col - 1, row + 1), (col - 1, row - 1)], // stem left
     };
-    let front_occupied = front.iter().filter(|&&(cx, cy)| !board.is_empty(cx, cy)).count();
+    let front_occupied = front
+        .iter()
+        .filter(|&&(cx, cy)| !board.is_empty(cx, cy))
+        .count();
     if front_occupied == 2 {
         TSpinType::Full
     } else {
@@ -100,7 +106,12 @@ mod tests {
     use crate::board::Board;
 
     fn make_pos(kind: TetrominoKind, col: i32, row: i32) -> PiecePos {
-        PiecePos { kind, rotation: Rotation::R0, col, row }
+        PiecePos {
+            kind,
+            rotation: Rotation::R0,
+            col,
+            row,
+        }
     }
 
     #[test]
@@ -136,7 +147,14 @@ mod tests {
         let other = make_pos(TetrominoKind::O, 5, 10);
         // O at (5,10) occupies (5,10),(6,10),(5,11),(6,11)
         // T at R0 centered at (5,10) occupies (4,10),(5,10),(6,10),(5,11) - overlap!
-        assert!(!piece_fits(&board, TetrominoKind::T, Rotation::R0, 5, 10, Some(other)));
+        assert!(!piece_fits(
+            &board,
+            TetrominoKind::T,
+            Rotation::R0,
+            5,
+            10,
+            Some(other)
+        ));
     }
 
     #[test]
@@ -171,15 +189,42 @@ mod tests {
             }
         }
         // T at center of filled region should fail rotation
-        let result = try_rotate(&board2, TetrominoKind::T, Rotation::R0, Rotation::R1, 5, 5, None);
-        assert!(result.is_none(), "rotation should be blocked when all kicks are occupied");
+        let result = try_rotate(
+            &board2,
+            TetrominoKind::T,
+            Rotation::R0,
+            Rotation::R1,
+            5,
+            5,
+            None,
+        );
+        assert!(
+            result.is_none(),
+            "rotation should be blocked when all kicks are occupied"
+        );
 
         // Without the other piece the T at (5,5) R0->R1 succeeds (kick 0 = no offset, fits fine on empty board)
-        let result_no_other = try_rotate(&board, TetrominoKind::T, Rotation::R0, Rotation::R1, 5, 5, None);
+        let result_no_other = try_rotate(
+            &board,
+            TetrominoKind::T,
+            Rotation::R0,
+            Rotation::R1,
+            5,
+            5,
+            None,
+        );
         assert!(result_no_other.is_some());
         // With board walls around AND other piece, confirm blocking still works
         let other = make_pos(TetrominoKind::O, 6, 5);
-        let result_with_other = try_rotate(&board2, TetrominoKind::T, Rotation::R0, Rotation::R1, 5, 5, Some(other));
+        let result_with_other = try_rotate(
+            &board2,
+            TetrominoKind::T,
+            Rotation::R0,
+            Rotation::R1,
+            5,
+            5,
+            Some(other),
+        );
         assert!(result_with_other.is_none());
     }
 
@@ -206,7 +251,7 @@ mod tests {
         board.set(4, 4, color); // back-left
         board.set(4, 6, color); // back-right (back for R1)
         board.set(6, 4, color); // front-bottom (1 front corner)
-        // 3 corners occupied, only 1 front → Mini
+                                // 3 corners occupied, only 1 front → Mini
         assert_eq!(check_t_spin(&board, 5, 5, Rotation::R1), TSpinType::Mini);
     }
 

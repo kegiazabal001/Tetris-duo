@@ -99,7 +99,6 @@ pub fn stop_game_music(mut commands: Commands, query: Query<Entity, With<GameMus
     }
 }
 
-
 pub fn play_piece_sounds(
     mut commands: Commands,
     audio: Res<AudioAssets>,

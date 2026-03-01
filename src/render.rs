@@ -508,7 +508,8 @@ pub fn sync_ghost_pieces(
         let mut ghost_row = pos.row;
         loop {
             let next = ghost_row - gravity_dir;
-            if !piece_fits(&board, pos.kind, pos.rotation, pos.col, next, other) {
+            let past_ceiling = gravity_dir < 0 && next >= VISIBLE_ROWS as i32;
+            if past_ceiling || !piece_fits(&board, pos.kind, pos.rotation, pos.col, next, other) {
                 break;
             }
             ghost_row = next;

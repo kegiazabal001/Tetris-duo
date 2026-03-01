@@ -52,8 +52,9 @@ pub fn start_bg_music(
     config: Res<AppConfig>,
     query_bg: Query<Entity, With<BgMusic>>,
 ) {
-    if !query_bg.is_empty() {
-        return;
+    // Despawn any stale BgMusic entity before spawning a fresh one.
+    for entity in query_bg.iter() {
+        commands.entity(entity).despawn();
     }
     commands.spawn((
         AudioPlayer::new(audio.music.clone()),

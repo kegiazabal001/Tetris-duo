@@ -165,7 +165,7 @@ impl Plugin for TetrisDuoPlugin {
             // Game Over
             .add_systems(
                 OnEnter(GameState::GameOver),
-                (modes::save_ultra_score, modes::save_chaos_score, scoring::save_high_score, ui::setup_game_over, audio::start_bg_music),
+                (modes::save_ultra_score, modes::save_chaos_score, scoring::save_high_score, ui::setup_game_over, audio::stop_game_music, audio::start_bg_music),
             )
             .add_systems(OnExit(GameState::GameOver), ui::despawn_game_over)
             .add_systems(

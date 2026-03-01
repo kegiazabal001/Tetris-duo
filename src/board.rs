@@ -94,12 +94,10 @@ impl Board {
             .collect()
     }
 
-    /// Removes the specified rows and compacts the board.
-    /// `gravity_dir`: +1 = normal (compact downward, empty rows at top);
-    ///                -1 = inverted (compact upward, empty rows at bottom).
+    /// Removes the specified rows and compacts the board downward (normal gravity).
     /// Anchor cells in cleared rows are preserved and re-settled after compaction.
     /// Call this after the line-clear animation finishes.
-    pub fn remove_rows(&mut self, rows: &[usize], gravity_dir: i8) {
+    pub fn remove_rows(&mut self, rows: &[usize]) {
         // 1. Collect ALL anchor cells (from every row — cleared or not) and remove
         //    them before compaction so the whole group moves as a rigid body.
         let mut saved_anchors: Vec<(usize, usize)> = Vec::new(); // (orig_row, col)
@@ -112,81 +110,43 @@ impl Board {
             }
         }
 
-        if gravity_dir >= 0 {
-            // Normal: compact downward — non-cleared rows shift toward row 0.
-            let mut write = 0usize;
-            for read in 0..ROWS {
-                if !rows.contains(&read) {
-                    if write != read {
-                        self.cells[write] = self.cells[read];
-                    }
-                    write += 1;
+        // Compact downward — non-cleared rows shift toward row 0.
+        let mut write = 0usize;
+        for read in 0..ROWS {
+            if !rows.contains(&read) {
+                if write != read {
+                    self.cells[write] = self.cells[read];
                 }
+                write += 1;
             }
-            for row in write..ROWS {
-                self.cells[row] = [None; COLS];
-            }
-
-            // Re-insert anchors at their compacted positions without extra gravity,
-            // so the piece shape is preserved.
-            // - Anchors NOT in a cleared row shift by the number of cleared rows
-            //   strictly below them (same amount as the surrounding board cells).
-            // - Anchors IN a cleared row shift by the number of cleared rows at-or-
-            //   below them, landing just below the cleared region.
-            for (orig_row, col) in saved_anchors {
-                let in_cleared = rows.contains(&orig_row);
-                let shift = if in_cleared {
-                    rows.iter().filter(|&&r| r <= orig_row).count()
-                } else {
-                    rows.iter().filter(|&&r| r < orig_row).count()
-                };
-                let new_row = orig_row.saturating_sub(shift);
-                // For non-cleared-row anchors, new_row is guaranteed empty (we removed
-                // the anchor before compaction, leaving a hole in that row).
-                // For cleared-row anchors, search upward for the first empty slot.
-                let target = (new_row..ROWS).find(|&r| self.cells[r][col].is_none());
-                if let Some(r) = target {
-                    self.cells[r][col] = Some(PieceColor::Anchor);
-                }
-            }
-            // No apply_anchor_gravity() — preserves the anchor piece shape.
-        } else {
-            // Inverted: compact upward — non-cleared rows shift toward row ROWS-1.
-            let mut write = ROWS - 1;
-            let mut wrote_any = false;
-            for read in (0..ROWS).rev() {
-                if !rows.contains(&read) {
-                    if wrote_any || write != read {
-                        self.cells[write] = self.cells[read];
-                    }
-                    wrote_any = true;
-                    if write > 0 { write -= 1; } else { break; }
-                }
-            }
-            // Clear remaining lower rows that are now empty.
-            let clear_up_to = if wrote_any { write } else { ROWS - 1 };
-            for row in 0..=clear_up_to {
-                self.cells[row] = [None; COLS];
-            }
-
-            // Re-insert anchors at their compacted positions (symmetric to normal).
-            for (orig_row, col) in saved_anchors {
-                let in_cleared = rows.contains(&orig_row);
-                let shift = if in_cleared {
-                    rows.iter().filter(|&&r| r >= orig_row).count()
-                } else {
-                    rows.iter().filter(|&&r| r > orig_row).count()
-                };
-                let new_row = (orig_row + shift).min(ROWS - 1);
-                // For non-cleared-row anchors new_row is guaranteed empty.
-                // For cleared-row anchors, search downward for the first empty slot.
-                let target = (0..=new_row).rev().find(|&r| self.cells[r][col].is_none());
-                if let Some(r) = target {
-                    self.cells[r][col] = Some(PieceColor::Anchor);
-                }
-            }
-            // No apply_anchor_gravity_up() — preserves the anchor piece shape.
         }
+        for row in write..ROWS {
+            self.cells[row] = [None; COLS];
+        }
+
+        // Re-insert anchors at their compacted positions without extra gravity,
+        // so the piece shape is preserved.
+        // - Anchors NOT in a cleared row shift by the number of cleared rows
+        //   strictly below them (same amount as the surrounding board cells).
+        // - Anchors IN a cleared row shift by the number of cleared rows at-or-
+        //   below them, landing just below the cleared region.
+        for (orig_row, col) in saved_anchors {
+            let in_cleared = rows.contains(&orig_row);
+            let shift = if in_cleared {
+                rows.iter().filter(|&&r| r <= orig_row).count()
+            } else {
+                rows.iter().filter(|&&r| r < orig_row).count()
+            };
+            let new_row = orig_row.saturating_sub(shift);
+            // For non-cleared-row anchors, new_row is guaranteed empty (we removed
+            // the anchor before compaction, leaving a hole in that row).
+            // For cleared-row anchors, search upward for the first empty slot.
+            let target = (new_row..ROWS).find(|&r| self.cells[r][col].is_none());
+            if let Some(r) = target {
+                self.cells[r][col] = Some(PieceColor::Anchor);
+            }
+        }
+        // No apply_anchor_gravity() — preserves the anchor piece shape.
     }
 
     /// Drops every anchor cell one step at a time until all anchors rest on
@@ -212,19 +172,7 @@ impl Board {
         }
     }
 
-    /// Mirrors the board vertically: row 0 ↔ row ROWS-1, row 1 ↔ row ROWS-2, etc.
-    /// Used for the FLIP! chaos event — pieces that were at the bottom end up at the
-    /// top (and vice versa) with their shapes intact.
-    pub fn flip_vertical(&mut self) {
-        for row in 0..VISIBLE_ROWS / 2 {
-            let mirror = VISIBLE_ROWS - 1 - row;
-            for col in 0..COLS {
-                let tmp = self.cells[row][col];
-                self.cells[row][col] = self.cells[mirror][col];
-                self.cells[mirror][col] = tmp;
-            }
-        }
-    }
+
 }
 
 #[cfg(test)]

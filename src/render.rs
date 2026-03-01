@@ -156,10 +156,11 @@ pub struct HoldPieceBlock {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-fn cell_pos(col: usize, row: usize) -> Vec3 {
+fn cell_pos(col: usize, row: usize, flip: bool) -> Vec3 {
+    let display_row = if flip { VISIBLE_ROWS - 1 - row } else { row };
     Vec3::new(
         BOARD_OFFSET_X + col as f32 * CELL_SIZE + CELL_SIZE / 2.0,
-        BOARD_OFFSET_Y + row as f32 * CELL_SIZE + CELL_SIZE / 2.0,
+        BOARD_OFFSET_Y + display_row as f32 * CELL_SIZE + CELL_SIZE / 2.0,
         0.0,
     )
 }
@@ -222,7 +223,7 @@ pub fn setup_board_visuals(mut commands: Commands) {
                     custom_size: Some(Vec2::splat(CELL_SIZE - 2.0)),
                     ..default()
                 },
-                Transform::from_translation(cell_pos(col, row)),
+                Transform::from_translation(cell_pos(col, row, false)),
                 BoardCellSprite { col, row },
             ));
         }
@@ -333,14 +334,14 @@ pub fn despawn_board_visuals(
 
 // ── Systems ───────────────────────────────────────────────────────────────────
 
-/// Sync board cell colors; flashes pending-clear rows and recently locked cells.
+/// Sync board cell colors and positions; flashes pending-clear rows and recently locked cells.
 pub fn sync_board_cells(
     board: Res<Board>,
     flash: Res<LineClearFlash>,
     lock_flash: Res<PieceLockFlash>,
     flip_flash: Res<FlipFlash>,
     chaos: Option<Res<ChaosState>>,
-    mut query: Query<(&BoardCellSprite, &mut Sprite)>,
+    mut query: Query<(&BoardCellSprite, &mut Transform, &mut Sprite)>,
 ) {
     use crate::state::FlipPhase;
     let bw = chaos.as_ref().map_or(false, |c| c.swap_active);
@@ -365,7 +366,12 @@ pub fn sync_board_cells(
         0.0
     };
 
-    for (cell, mut sprite) in &mut query {
+    for (cell, mut tf, mut sprite) in &mut query {
+        // Update position: flip vertically when FLIP event is active.
+        let mut pos = cell_pos(cell.col, cell.row, flip_active);
+        pos.z = tf.translation.z;
+        tf.translation = pos;
+
         let base = match board.cells[cell.row][cell.col] {
             Some(pc) => {
                 if bw && pc.is_anchor() {
@@ -438,13 +444,11 @@ pub fn tick_flash_timer(
     time: Res<Time>,
     mut flash: ResMut<LineClearFlash>,
     mut board: ResMut<Board>,
-    chaos: Option<Res<ChaosState>>,
 ) {
     if flash.timer > 0.0 {
         flash.timer = (flash.timer - time.delta_secs()).max(0.0);
         if flash.timer == 0.0 && !flash.pending_rows.is_empty() {
-            let gravity_dir = chaos.as_ref().map_or(1, |c| c.gravity_dir);
-            board.remove_rows(&flash.pending_rows, gravity_dir);
+            board.remove_rows(&flash.pending_rows);
             flash.pending_rows.clear();
         }
     }
@@ -456,7 +460,9 @@ pub fn sync_active_pieces(
     chaos: Option<Res<ChaosState>>,
     mut blocks: Query<(&ActiveBlockSprite, &mut Transform, &mut Sprite)>,
 ) {
+    use crate::state::FlipPhase;
     let bw = chaos.as_ref().map_or(false, |c| c.swap_active);
+    let flip = chaos.as_ref().map_or(false, |c| !matches!(c.flip_phase, FlipPhase::Inactive));
     for (block, mut tf, mut sprite) in &mut blocks {
         let Some(piece) = players.iter().find(|p| p.player == block.player) else {
             tf.translation.y = -1000.0;
@@ -465,7 +471,7 @@ pub fn sync_active_pieces(
         let cells = collision::absolute_cells(piece.kind, piece.rotation, piece.col, piece.row);
         let (cx, cy) = cells[block.index];
         if cy < VISIBLE_ROWS as i32 && cy >= 0 && cx >= 0 && cx < COLS as i32 {
-            tf.translation = cell_pos(cx as usize, cy as usize);
+            tf.translation = cell_pos(cx as usize, cy as usize, flip);
             tf.translation.z = 2.0;
             let c = if piece.is_anchor {
                 if bw { anchor_color_bw() } else { anchor_color() }
@@ -487,11 +493,12 @@ pub fn sync_ghost_pieces(
     chaos: Option<Res<ChaosState>>,
     mut ghosts: Query<(&GhostBlockSprite, &mut Transform, &mut Sprite)>,
 ) {
+    use crate::state::FlipPhase;
     let bw = chaos.as_ref().map_or(false, |c| c.swap_active);
-    let gravity_dir = chaos.as_ref().map_or(1_i32, |c| c.gravity_dir as i32);
+    let flip = chaos.as_ref().map_or(false, |c| !matches!(c.flip_phase, FlipPhase::Inactive));
     // Collect minimal snapshots — no heap allocation, no full ActivePiece clone.
     let snapshots: [Option<(PlayerId, PiecePos)>; 2] = {
-        let mut it = players.iter().filter(|p| !p.waiting_for_flip);
+        let mut it = players.iter();
         [
             it.next().map(|ap| (ap.player, ap.to_piece_pos())),
             it.next().map(|ap| (ap.player, ap.to_piece_pos())),
@@ -507,9 +514,8 @@ pub fn sync_ghost_pieces(
 
         let mut ghost_row = pos.row;
         loop {
-            let next = ghost_row - gravity_dir;
-            let past_ceiling = gravity_dir < 0 && next >= VISIBLE_ROWS as i32;
-            if past_ceiling || !piece_fits(&board, pos.kind, pos.rotation, pos.col, next, other) {
+            let next = ghost_row - 1;
+            if !piece_fits(&board, pos.kind, pos.rotation, pos.col, next, other) {
                 break;
             }
             ghost_row = next;
@@ -518,7 +524,7 @@ pub fn sync_ghost_pieces(
         let cells = collision::absolute_cells(pos.kind, pos.rotation, pos.col, ghost_row);
         let (cx, cy) = cells[ghost.index];
         if cy < VISIBLE_ROWS as i32 && cy >= 0 && cx >= 0 && cx < COLS as i32 {
-            tf.translation = cell_pos(cx as usize, cy as usize);
+            tf.translation = cell_pos(cx as usize, cy as usize, flip);
             tf.translation.z = 1.0;
             let is_anchor = players.iter().find(|p| p.player == *player).map_or(false, |p| p.is_anchor);
             let c = if is_anchor {

@@ -46,12 +46,8 @@ pub enum FlipPhase {
     /// No FLIP event active.
     #[default]
     Inactive,
-    /// Waiting for both players to place their current piece before flipping.
-    Waiting,
-    /// Gravity inverted; active gameplay for FLIP_DURATION seconds.
+    /// Board is rendered upside-down for FLIP_DURATION seconds.
     Active,
-    /// Waiting for both players to place their current piece before flipping back.
-    WaitingEnd,
 }
 
 #[derive(Resource)]
@@ -65,13 +61,9 @@ pub struct ChaosState {
     pub swap_p2_remaining: u32,
     pub swap_active:       bool,
     // FLIP fields
-    pub flip_phase:        FlipPhase,
-    /// Countdown during Active; accumulator during migrations.
-    pub flip_timer:        f32,
-    pub flip_wait_p1_done: bool,
-    pub flip_wait_p2_done: bool,
-    /// Gravity direction: +1 = normal (down), -1 = inverted (up).
-    pub gravity_dir:       i8,
+    pub flip_phase: FlipPhase,
+    /// Countdown during Active phase.
+    pub flip_timer: f32,
 }
 
 impl Default for ChaosState {
@@ -84,9 +76,6 @@ impl Default for ChaosState {
             swap_active: false,
             flip_phase: FlipPhase::Inactive,
             flip_timer: 0.0,
-            flip_wait_p1_done: false,
-            flip_wait_p2_done: false,
-            gravity_dir: 1,
         }
     }
 }
@@ -100,17 +89,10 @@ impl ChaosState {
             self.swap_p2_remaining = CHAOS_SWAP_PIECES;
             self.swap_active       = true;
         } else {
-            self.active_event      = Some(ChaosEvent::Flip);
-            self.flip_phase        = FlipPhase::Waiting;
-            self.flip_wait_p1_done = false;
-            self.flip_wait_p2_done = false;
-            self.flip_timer        = crate::constants::FLIP_DURATION;
+            self.active_event = Some(ChaosEvent::Flip);
+            self.flip_phase   = FlipPhase::Active;
+            self.flip_timer   = crate::constants::FLIP_DURATION;
         }
-    }
-
-    /// True if any chaos event is blocking normal piece spawning.
-    pub fn blocks_spawn(&self) -> bool {
-        matches!(self.flip_phase, FlipPhase::Waiting | FlipPhase::WaitingEnd)
     }
 }
 

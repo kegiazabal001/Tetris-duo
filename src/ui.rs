@@ -60,7 +60,8 @@ pub fn setup_hud(mut commands: Commands, mode: Res<SelectedMode>, font: Res<Game
             HudRoot,
             Node {
                 position_type: PositionType::Absolute,
-                left: Val::Percent(50.0),
+                left: Val::Px(0.0),
+                right: Val::Px(0.0),
                 top: Val::Px(12.0),
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,

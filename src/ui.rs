@@ -1094,3 +1094,39 @@ pub fn global_mute_input(
     }
     config.save();
 }
+
+// ── Mute icon (persistent, always on top) ────────────────────────────────────
+
+#[derive(Component)]
+pub struct MuteIcon;
+
+/// Spawned once at Startup. Never despawned — persists across all game states.
+pub fn setup_mute_icon(mut commands: Commands, font: Res<GameFont>, config: Res<AppConfig>) {
+    let visible = if config.volume == 0.0 { Visibility::Visible } else { Visibility::Hidden };
+    commands.spawn((
+        MuteIcon,
+        Text::new("[MUTE]"),
+        TextFont { font: font.0.clone(), font_size: 18.0, ..default() },
+        TextColor(Color::srgba(1.0, 0.3, 0.3, 0.9)),
+        Node {
+            position_type: PositionType::Absolute,
+            right: Val::Px(12.0),
+            top: Val::Px(10.0),
+            ..default()
+        },
+        ZIndex(999),
+        visible,
+    ));
+}
+
+/// Keeps the mute icon in sync with AppConfig every frame.
+pub fn sync_mute_icon(
+    config: Res<AppConfig>,
+    mut icon: Query<&mut Visibility, With<MuteIcon>>,
+) {
+    if !config.is_changed() {
+        return;
+    }
+    let Ok(mut vis) = icon.single_mut() else { return };
+    *vis = if config.volume == 0.0 { Visibility::Visible } else { Visibility::Hidden };
+}

@@ -52,7 +52,8 @@ impl Plugin for TetrisDuoPlugin {
             // Startup
             .init_resource::<ui::GameFont>()
             .add_systems(PreStartup, config::load_config)
-            .add_systems(Startup, audio::start_bg_music)
+            .add_systems(Startup, (audio::start_bg_music, ui::setup_mute_icon))
+            .add_systems(Update, ui::sync_mute_icon)
             // Menu
             .add_systems(OnEnter(GameState::Menu), (audio::start_bg_music, ui::setup_menu))
             .add_systems(OnExit(GameState::Menu), ui::despawn_menu)

@@ -1,4 +1,4 @@
-/// Board grid: 16 columns wide, 22 rows tall (20 visible + 2 spawn rows).
+/// Board grid: 16 columns wide, 22 rows tall (20 visible + 2 hidden buffer rows at top).
 use bevy::prelude::*;
 
 use crate::piece::TetrominoKind;

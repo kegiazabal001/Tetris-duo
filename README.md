@@ -8,7 +8,7 @@ Cooperative 2-player Tetris on a single shared board. Both players work together
 
 ## Features
 
-- Shared 18×20 board — no fixed lanes, both pieces interact
+- Shared 16×20 board — no fixed lanes, both pieces interact
 - **Four game modes:** Classic, Sprint (20 lines), Ultra (2 minutes), Chaos (cooperative chaos events every 10 pieces)
 - Full Tetris Guideline scoring: T-Spins, Back-to-Back, combos
 - SRS rotation system with wall kicks

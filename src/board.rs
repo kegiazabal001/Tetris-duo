@@ -216,8 +216,8 @@ impl Board {
     /// Used for the FLIP! chaos event — pieces that were at the bottom end up at the
     /// top (and vice versa) with their shapes intact.
     pub fn flip_vertical(&mut self) {
-        for row in 0..ROWS / 2 {
-            let mirror = ROWS - 1 - row;
+        for row in 0..VISIBLE_ROWS / 2 {
+            let mirror = VISIBLE_ROWS - 1 - row;
             for col in 0..COLS {
                 let tmp = self.cells[row][col];
                 self.cells[row][col] = self.cells[mirror][col];

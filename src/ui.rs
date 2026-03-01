@@ -514,11 +514,15 @@ pub fn pause_input(
     state: Res<State<GameState>>,
     mut next_state: ResMut<NextState<GameState>>,
     mut quit_to_menu: EventWriter<QuitToMenu>,
+    mut is_resume: ResMut<crate::IsPauseResume>,
 ) {
     if keyboard.just_pressed(KeyCode::Escape) {
         match state.get() {
             GameState::Playing => next_state.set(GameState::Paused),
-            GameState::Paused => next_state.set(GameState::Playing),
+            GameState::Paused => {
+                is_resume.0 = true;
+                next_state.set(GameState::Playing);
+            }
             _ => {}
         }
     }

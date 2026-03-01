@@ -20,6 +20,10 @@ use crate::input::PieceAction;
 use crate::player::InputGrace;
 use crate::state::{ChaosState, GameState, QuitToMenu, RebindTarget, SelectedMode};
 
+/// Marks a Paused→Playing transition so OnExit/OnEnter skip teardown/setup.
+#[derive(Resource, Default)]
+pub struct IsPauseResume(pub bool);
+
 pub struct TetrisDuoPlugin;
 
 impl Plugin for TetrisDuoPlugin {
@@ -39,6 +43,7 @@ impl Plugin for TetrisDuoPlugin {
             .init_resource::<modes::ModeTimer>()
             .init_resource::<ChaosState>()
             .init_resource::<audio::AudioAssets>()
+            .init_resource::<IsPauseResume>()
             .add_event::<player::PieceLocked>()
             .add_event::<player::LinesCleared>()
             .add_event::<player::PieceRotated>()
@@ -81,19 +86,26 @@ impl Plugin for TetrisDuoPlugin {
             .add_systems(
                 OnEnter(GameState::Playing),
                 (
-                    audio::stop_bg_music,
-                    audio::start_game_music,
-                    modes::start_mode_timer,
-                    modes::reset_chaos_state,
-                    player::spawn_players,
-                    render::setup_board_visuals,
-                    ui::setup_hud,
-                    |mut grace: ResMut<InputGrace>| grace.0 = true,
+                    (
+                        audio::stop_bg_music,
+                        audio::start_game_music,
+                        modes::start_mode_timer,
+                        modes::reset_chaos_state,
+                        player::spawn_players,
+                        render::setup_board_visuals,
+                        ui::setup_hud,
+                        |mut grace: ResMut<InputGrace>| grace.0 = true,
+                    ).run_if(|r: Res<IsPauseResume>| !r.0),
+                    // When resuming from pause, restart game music (was stopped on pause)
+                    audio::start_game_music.run_if(|r: Res<IsPauseResume>| r.0),
+                    // Always reset the flag
+                    |mut r: ResMut<IsPauseResume>| r.0 = false,
                 ),
             )
             .add_systems(
                 OnExit(GameState::Playing),
-                (player::despawn_players, render::despawn_board_visuals, ui::despawn_hud, audio::stop_game_music),
+                (player::despawn_players, render::despawn_board_visuals, ui::despawn_hud, audio::stop_game_music)
+                    .run_if(|r: Res<IsPauseResume>| !r.0),
             )
             // Playing: game loop
             .add_systems(
